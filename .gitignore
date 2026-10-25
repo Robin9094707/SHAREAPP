@@ -1,0 +1,14 @@
+.DS_Store
+__pycache__/
+*.pyc
+.swiftpm/
+.build/
+DerivedData/
+bin/
+obj/
+dist/
+robins_dateishare_daten/
+*.pfx
+*.mobileprovision
+*.p12
+*.user

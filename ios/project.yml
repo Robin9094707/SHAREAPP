@@ -1,0 +1,48 @@
+name: RobinShare
+options:
+  bundleIdPrefix: eu.rjuhas
+  deploymentTarget:
+    iOS: '26.0'
+settings:
+  base:
+    SWIFT_VERSION: '5.0'
+    MARKETING_VERSION: '1.0.0'
+    CURRENT_PROJECT_VERSION: '1'
+    CODE_SIGNING_ALLOWED: NO
+    DEVELOPMENT_TEAM: ''
+    TARGETED_DEVICE_FAMILY: '1,2'
+targets:
+  RobinShare:
+    type: application
+    platform: iOS
+    sources: [RobinShare]
+    info:
+      path: RobinShare/Info.plist
+      properties:
+        CFBundleDisplayName: Robins Share
+        UILaunchScreen: {}
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: false
+        UIFileSharingEnabled: true
+        LSSupportsOpeningDocumentsInPlace: true
+        NSLocalNetworkUsageDescription: Robins Share findet deinen Windows-PC im lokalen Netzwerk und überträgt Dateien direkt.
+        NSBonjourServices: ['_robinshare._tcp']
+        NSBluetoothAlwaysUsageDescription: Bluetooth erkennt PCs mit Robins Share in deiner Nähe. Dateien werden über das lokale Netzwerk übertragen.
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
+        UISupportedInterfaceOrientations~ipad: [UIInterfaceOrientationPortrait, UIInterfaceOrientationPortraitUpsideDown, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: eu.rjuhas.robinshare
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+    scheme:
+      testTargets: [RobinShareTests]
+  RobinShareTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources: [RobinShareTests]
+    dependencies: [{target: RobinShare}]
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES

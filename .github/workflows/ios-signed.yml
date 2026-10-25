@@ -1,0 +1,60 @@
+name: Signierte iOS-App
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  sign:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: '26.0'
+      - name: Zertifikat und Profil importieren
+        env:
+          CERTIFICATE: ${{ secrets.IOS_CERTIFICATE_P12_BASE64 }}
+          CERT_PASSWORD: ${{ secrets.IOS_CERTIFICATE_PASSWORD }}
+          PROFILE: ${{ secrets.IOS_PROVISIONING_PROFILE_BASE64 }}
+          TEAM_ID: ${{ secrets.IOS_TEAM_ID }}
+        run: |
+          test -n "$CERTIFICATE" && test -n "$PROFILE" && test -n "$TEAM_ID" || { echo 'Apple-Signing-Secrets fehlen. Siehe README.'; exit 1; }
+          KEYCHAIN_PASSWORD=$(openssl rand -hex 24)
+          echo "::add-mask::$KEYCHAIN_PASSWORD"
+          printf '%s' "$CERTIFICATE" | base64 --decode > "$RUNNER_TEMP/certificate.p12"
+          printf '%s' "$PROFILE" | base64 --decode > "$RUNNER_TEMP/profile.mobileprovision"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$RUNNER_TEMP/build.keychain-db"
+          security set-keychain-settings -lut 21600 "$RUNNER_TEMP/build.keychain-db"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$RUNNER_TEMP/build.keychain-db"
+          security import "$RUNNER_TEMP/certificate.p12" -P "$CERT_PASSWORD" -A -t cert -f pkcs12 -k "$RUNNER_TEMP/build.keychain-db"
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -k "$KEYCHAIN_PASSWORD" "$RUNNER_TEMP/build.keychain-db"
+          security list-keychain -d user -s "$RUNNER_TEMP/build.keychain-db"
+          security cms -D -i "$RUNNER_TEMP/profile.mobileprovision" > "$RUNNER_TEMP/profile.plist"
+          PROFILE_UUID=$(/usr/libexec/PlistBuddy -c 'Print :UUID' "$RUNNER_TEMP/profile.plist")
+          echo "PROFILE_UUID=$PROFILE_UUID" >> "$GITHUB_ENV"
+          mkdir -p "$HOME/Library/MobileDevice/Provisioning Profiles"
+          cp "$RUNNER_TEMP/profile.mobileprovision" "$HOME/Library/MobileDevice/Provisioning Profiles/$PROFILE_UUID.mobileprovision"
+      - name: Signiertes Archiv exportieren
+        env:
+          TEAM_ID: ${{ secrets.IOS_TEAM_ID }}
+        run: |
+          brew install xcodegen
+          cd ios && xcodegen generate && cd ..
+          xcodebuild archive -project ios/RobinShare.xcodeproj -scheme RobinShare -configuration Release -destination 'generic/platform=iOS' -archivePath build/RobinShare.xcarchive CODE_SIGNING_ALLOWED=YES CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY='Apple Distribution' DEVELOPMENT_TEAM="$TEAM_ID" PROVISIONING_PROFILE_SPECIFIER="$PROFILE_UUID"
+          python3 - <<'PY'
+          import os,plistlib
+          with open('build/ExportOptions.plist','wb') as f:
+              plistlib.dump({'method':'release-testing','signingStyle':'manual','teamID':os.environ['TEAM_ID'],'provisioningProfiles':{'eu.rjuhas.robinshare':os.environ['PROFILE_UUID']}},f)
+          PY
+          xcodebuild -exportArchive -archivePath build/RobinShare.xcarchive -exportOptionsPlist build/ExportOptions.plist -exportPath dist/signed
+      - uses: actions/upload-artifact@v4
+        with:
+          name: RobinsShare-iOS-signiert
+          path: dist/signed/*.ipa
+          if-no-files-found: error
+      - name: Temporäre Signierschlüssel löschen
+        if: always()
+        run: |
+          security delete-keychain "$RUNNER_TEMP/build.keychain-db" || true
+          rm -f "$RUNNER_TEMP/certificate.p12" "$RUNNER_TEMP/profile.mobileprovision" "$RUNNER_TEMP/profile.plist"
+          if [ -n "$PROFILE_UUID" ]; then rm -f "$HOME/Library/MobileDevice/Provisioning Profiles/$PROFILE_UUID.mobileprovision"; fi
