@@ -289,6 +289,7 @@ def main():
     parser.add_argument('--port',type=int,default=int(os.getenv('ROBINS_PORT',os.getenv('ROBBINS_DATEISHARE_PORT','5055'))))
     parser.add_argument('--data',default=os.getenv('ROBINS_DATA_DIR',str(Path(__file__).resolve().parent/'robins_dateishare_daten')))
     parser.add_argument('--public-url',default=os.getenv('ROBINS_PUBLIC_URL','https://share.rjuhas.eu'))
+    parser.add_argument('--strictPort', action='store_true', help=argparse.SUPPRESS)
     args=parser.parse_args()
     store=Store(args.data,ttl=int(os.getenv('ROBINS_TTL_SECONDS','3600')),max_bytes=int(os.getenv('ROBINS_MAX_MB','102400'))*1024**2,quota=int(os.getenv('ROBINS_QUOTA_MB','512000'))*1024**2)
     server=Server((args.host,args.port),store,args.public_url)

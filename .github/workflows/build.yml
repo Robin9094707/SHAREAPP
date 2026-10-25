@@ -45,7 +45,7 @@ jobs:
           xcodegen generate
       - name: Kleine native Tests
         run: |
-          DEVICE=$(xcrun simctl list devices available -j | python3 -c 'import json,sys; d=json.load(sys.stdin); print(next(x["udid"] for group in d["devices"].values() for x in group if "iPhone" in x["name"]))')
+          DEVICE=$(xcrun simctl list devices available -j | python3 -c 'import json,sys; d=json.load(sys.stdin); print(next(x["udid"] for key,group in d["devices"].items() if "iOS-26" in key for x in group if "iPhone" in x["name"]))')
           xcodebuild test -project ios/RobinShare.xcodeproj -scheme RobinShare -destination "platform=iOS Simulator,id=$DEVICE" -resultBundlePath TestResults.xcresult CODE_SIGNING_ALLOWED=NO
       - name: Geräte-App archivieren und unsignierte IPA packen
         run: |

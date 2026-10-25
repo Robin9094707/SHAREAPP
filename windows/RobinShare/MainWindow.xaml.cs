@@ -8,6 +8,7 @@ using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Threading;
 using Microsoft.Win32;
+using Orientation=System.Windows.Controls.Orientation;
 using Button=System.Windows.Controls.Button;
 using MessageBox=System.Windows.MessageBox;
 using DataFormats=System.Windows.DataFormats;

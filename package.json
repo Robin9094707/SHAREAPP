@@ -1,0 +1,10 @@
+{
+  "name": "robins-share-suite",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "python3 server/robinshare.py --host 0.0.0.0 --port ${PORT:-3000} --data /tmp/robins-share-preview --public-url ''",
+    "test": "python3 -m unittest discover -s tests -v && python3 scripts/check_web.py",
+    "build": "python3 scripts/package_server.py"
+  }
+}

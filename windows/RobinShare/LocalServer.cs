@@ -127,7 +127,7 @@ public sealed class LocalServer : IAsyncDisposable
             outgoing.TryRemove(id,out _);Changed?.Invoke();return Results.Json(new{ok=true});
         });
         await app.StartAsync();
-        cleanup=new System.Threading.Timer(_=>{
+        cleanup=new System.Threading.Timer(timerState=>{
             foreach(var u in uploads.Values.Where(u=>u.Seen<DateTime.UtcNow.AddHours(-1))){if(u.Gate.Wait(0)){try{uploads.TryRemove(u.Id,out _);File.Delete(u.Path);}catch{}finally{u.Gate.Release();}}}
             foreach(var o in outgoing.Values.Where(o=>o.Expires<DateTimeOffset.UtcNow.ToUnixTimeSeconds()))outgoing.TryRemove(o.Id,out _);
         },null,TimeSpan.FromMinutes(1),TimeSpan.FromMinutes(1));
