@@ -10,7 +10,10 @@ import UniformTypeIdentifiers
     var body: some Scene {
         WindowGroup {
             ContentView().environmentObject(model).environmentObject(nearby).environmentObject(downloads)
-                .task { downloads.reload(); _ = downloads.session; await model.connect(); model.startPolling() }
+                .task {
+                    if ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil { return }
+                    downloads.reload(); _ = downloads.session; await model.connect(); model.startPolling()
+                }
                 .onChange(of: phase) { _, value in
                     if value == .active { model.startPolling(); downloads.reload() }
                     else { model.stopPolling(); nearby.stop() }
@@ -23,6 +26,7 @@ struct ContentView: View {
     @EnvironmentObject var nearby: Nearby
     @EnvironmentObject var downloads: Downloads
     @State private var importer = false
+    @State private var pendingImports: [URL] = []
     @State private var target = ""
     @State private var code = ""
     @State private var pairing = ""
@@ -40,10 +44,16 @@ struct ContentView: View {
             Tab("Geräte", systemImage: "laptopcomputer.and.iphone", value: 2) { devicesView }
             Tab("Dateien", systemImage: "folder", value: 3) { filesView }
         }.tint(.indigo)
-        .fileImporter(isPresented: $importer, allowedContentTypes: [.item], allowsMultipleSelection: true) { result in
-            switch result { case .success(let urls): model.importFiles(urls); case .failure(let error): model.error = error.localizedDescription }
+        .sheet(isPresented: $importer, onDismiss: {
+            let selection = pendingImports; pendingImports = []
+            model.importFiles(selection)
+        }) {
+            DocumentPicker { urls in
+                pendingImports = urls
+                importer = false
+            }
         }
-        .alert("Hinweis", isPresented: Binding(get: { model.error != nil }, set: { if !$0 { model.error = nil } })) { Button("OK") { model.error = nil } } message: { Text(model.error ?? "") }
+        .alert("Hinweis", isPresented: Binding(get: { model.error != nil && !importer && pendingImports.isEmpty && !model.importing }, set: { if !$0 { model.error = nil } })) { Button("OK") { model.error = nil } } message: { Text(model.error ?? "") }
         .alert("PC-Fingerabdruck prüfen", isPresented: $verifyLocal) {
             Button("Abbrechen", role: .cancel) {}
             Button("Stimmt überein · Koppeln") { if let candidate { Task { await model.pairLocal(candidate, code: localCode) } } }
@@ -69,17 +79,18 @@ struct ContentView: View {
                     header("Alles kommt an.", subtitle: "Deine Dateien. Ohne Umwege.", symbol: "arrow.up.right")
                     Button { importer = true } label: {
                         VStack(spacing: 14) { Image(systemName: "plus.circle").font(.largeTitle); Text("Dateien auswählen").font(.headline); Text("Fotos, Videos, Dokumente und mehr").font(.caption).foregroundStyle(.secondary) }.frame(maxWidth: .infinity).padding(.vertical, 34)
-                    }.buttonStyle(.plain).glassEffect(.regular.interactive(), in: .rect(cornerRadius: 28)).disabled(model.sending)
+                    }.buttonStyle(.plain).glassEffect(.regular.interactive(), in: .rect(cornerRadius: 28)).disabled(model.sending || model.importing)
                     ForEach(model.selectedFiles, id: \.self) { file in
-                        HStack { Image(systemName: "doc").foregroundStyle(.indigo); Text(model.displayName(file)).lineLimit(1); Spacer(); Button { model.removeFile(file) } label: { Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary) }.disabled(model.sending).accessibilityLabel("Datei entfernen") }.padding(.vertical, 5)
+                        HStack { Image(systemName: "doc").foregroundStyle(.indigo); Text(model.displayName(file)).lineLimit(1); Spacer(); Button { model.removeFile(file) } label: { Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary) }.disabled(model.sending || model.importing).accessibilityLabel("Datei entfernen") }.padding(.vertical, 5)
                     }
                     Picker("Senden an", selection: $target) {
                         Text("Code oder Link erstellen").tag("")
                         ForEach(model.state?.devices ?? []) { Text($0.name+" · Server").tag($0.id) }
                         ForEach(model.localPeers) { Text($0.name+" · Direkt im WLAN").tag("local:"+$0.id) }
-                    }.pickerStyle(.menu).disabled(model.sending)
+                    }.pickerStyle(.menu).disabled(model.sending || model.importing)
+                    if model.importing { ProgressView("Datei wird vorbereitet …") }
                     if model.sending { ProgressView(value: model.progress); Button("Abbrechen", role: .destructive) { model.sendTask?.cancel() } }
-                    Button { model.send(target: target) } label: { Label("Jetzt senden", systemImage: "arrow.up").frame(maxWidth: .infinity).padding(8) }.buttonStyle(.glassProminent).disabled(model.selectedFiles.isEmpty || model.sending)
+                    Button { model.send(target: target) } label: { Label("Jetzt senden", systemImage: "arrow.up").frame(maxWidth: .infinity).padding(8) }.buttonStyle(.glassProminent).disabled(model.selectedFiles.isEmpty || model.sending || model.importing)
                     Text(model.status).font(.footnote).foregroundStyle(.secondary)
                     ForEach(model.latest, id: \.transfer.id) { result in
                         VStack(alignment: .leading, spacing: 10) {

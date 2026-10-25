@@ -2,6 +2,13 @@
 
 Eine deutsche Suite für Dateifreigaben: ein eigenständiger Server mit Weboberfläche, eine native SwiftUI-App für iPhone/iPad und ein natives Windows-11-Programm mit WPF Fluent. Der bestehende Webport **5055** bleibt erhalten.
 
+## Korrekturen in App-Version 1.0.1
+
+- Windows: Ein PNG-komprimiertes ICO wurde vom WPF-Bilddecoder beim Fensterstart abgelehnt. Das Icon verwendet jetzt klassische DIB-Bilder. Die CI prüft den WPF-Decoder und startet das vollständig installierte Programm bis zum tatsächlich gerenderten Fenster, auch aus einem anderen Arbeitsverzeichnis.
+- Windows: Künftige Startfehler werden sichtbar gemeldet und unter `%LOCALAPPDATA%\RobinsShare\Logs\startup.log` protokolliert. Netzwerkdienste starten erst nach Darstellung des Fensters.
+- iOS: Der native Dokument-Picker schließt nach der Auswahl zuerst. Security-Scoped-/iCloud-Dateien werden anschließend mit `NSFileCoordinator` außerhalb des UI-Threads übernommen. Währenddessen erscheint eine Fortschrittsanzeige. Mehrfachauswahl, gleiche Dateinamen und fehlerhafte Ordnerauswahl sind getestet.
+- Bestehende Serverfreigaben und das API-Protokoll bleiben kompatibel; für diese App-Korrekturen ist kein Serverwechsel erforderlich.
+
 ## Die drei Dateien
 
 Die [Releases](https://github.com/Robin9094707/SHAREAPP/releases) enthalten nach erfolgreicher CI:

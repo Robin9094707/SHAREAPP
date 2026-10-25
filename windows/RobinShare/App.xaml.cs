@@ -38,10 +38,11 @@ public partial class App : System.Windows.Application
             Shutdown(); return;
         }
         StartupDiagnostics.Log("Hauptfenster wird erstellt");
-        var window = new MainWindow(smoke); MainWindow = window;
+        var window = new MainWindow(); MainWindow = window;
         if(smoke)
         {
-            window.ContentRendered+=(_,_)=>{
+            window.ContentRendered+=async(_,_)=>{
+                await Task.Delay(3000);
                 if(!window.IsVisible || System.Windows.PresentationSource.FromVisual(window)==null){StartupDiagnostics.Result(false,"window-not-visible");Shutdown(1);return;}
                 StartupDiagnostics.Result(true,"window-rendered");
                 StartupDiagnostics.Log("Veröffentlichtes Hauptfenster sichtbar");

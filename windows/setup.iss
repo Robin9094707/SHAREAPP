@@ -1,4 +1,4 @@
-#define MyAppVersion "1.0.0"
+#define MyAppVersion "1.0.1"
 [Setup]
 AppId={{EB1DC50A-D27A-4164-97B3-050550550001}
 AppName=Robins Share

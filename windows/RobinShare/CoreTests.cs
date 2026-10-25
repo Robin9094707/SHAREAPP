@@ -7,6 +7,11 @@ internal static class CoreTests
     {
         try
         {
+            using(var iconStream=System.Windows.Application.GetResourceStream(new Uri("pack://application:,,,/Assets/RobinShare.ico"))!.Stream)
+            {
+                var decoder=System.Windows.Media.Imaging.BitmapDecoder.Create(iconStream,System.Windows.Media.Imaging.BitmapCreateOptions.PreservePixelFormat,System.Windows.Media.Imaging.BitmapCacheOption.OnLoad);
+                Assert(decoder.Frames.Count>=1,"WPF kann das tatsächlich eingebettete Icon dekodieren");
+            }
             Assert(Safety.Filename("../../video.mov")=="video.mov","Pfadbereinigung");
             Assert(Safety.Filename("CON.txt")=="_CON.txt","Reservierte Dateinamen");
             Throws(()=>Safety.Server("http://example.org"));

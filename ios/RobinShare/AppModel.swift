@@ -10,6 +10,7 @@ import UIKit
     @Published var localPeers: [LocalPeer] = Vault.read("local-peers") ?? []
     @Published var directInbox: [String: [Transfer]] = [:]
     @Published var selectedFiles: [URL] = []
+    @Published var importing = false
     @Published var sending = false
     @Published var progress: Double = 0
     @Published var status = "Bereit zum Verbinden."
@@ -77,20 +78,28 @@ import UIKit
         } catch { self.error = error.localizedDescription }
     }
     func importFiles(_ urls: [URL]) {
-        guard !sending else { return }
+        guard !sending, !importing, !urls.isEmpty else { return }
+        importing = true
+        status = "Dateien werden vorbereitet …"
         let folder = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("Uploads")
-        do {
-            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        Task {
+            defer { importing = false }
+            var failures: [String] = []
+            var added = 0
             for url in urls {
-                let access = url.startAccessingSecurityScopedResource(); defer { if access { url.stopAccessingSecurityScopedResource() } }
-                let destination = folder.appendingPathComponent(UUID().uuidString+"-"+Safety.safeName(url.lastPathComponent))
-                try FileManager.default.copyItem(at: url, to: destination); selectedFiles.append(destination)
+                status = "Übernehme \(url.lastPathComponent) …"
+                do {
+                    let destination = try await FileStaging.stage(url, in: folder)
+                    selectedFiles.append(destination); added += 1
+                } catch { failures.append("\(url.lastPathComponent): \(error.localizedDescription)") }
             }
-        } catch { self.error = error.localizedDescription }
+            status = added == 1 ? "Eine Datei ist zum Senden bereit." : "\(added) Dateien sind zum Senden bereit."
+            if !failures.isEmpty { error = "Diese Dateien konnten nicht übernommen werden:\n" + failures.joined(separator: "\n") }
+        }
     }
     func removeFile(_ url: URL) { try? FileManager.default.removeItem(at: url); selectedFiles.removeAll { $0 == url } }
     func send(target: String) {
-        guard !sending, !selectedFiles.isEmpty else { return }
+        guard !sending, !importing, !selectedFiles.isEmpty else { return }
         let local = localPeers.first { "local:"+$0.id == target }
         let client = local.map { API(base: $0.url, token: $0.token, pin: $0.fingerprint) } ?? api
         let deviceID = target.isEmpty || local != nil ? nil : target

@@ -5,7 +5,7 @@ let package = Package(
     platforms: [.macOS(.v13)],
     products: [.library(name: "ShareCore", targets: ["ShareCore"])],
     targets: [
-        .target(name: "ShareCore", path: "RobinShare", exclude: ["API.swift", "AppModel.swift", "Downloads.swift", "Keychain.swift", "Nearby.swift", "RobinShareApp.swift", "Assets.xcassets"], sources: ["Models.swift"]),
+        .target(name: "ShareCore", path: "RobinShare", exclude: ["DocumentPicker.swift", "API.swift", "AppModel.swift", "Downloads.swift", "Keychain.swift", "Nearby.swift", "RobinShareApp.swift", "Assets.xcassets"], sources: ["Models.swift", "FileStaging.swift"]),
         .testTarget(name: "ShareCoreTests", dependencies: ["ShareCore"], path: "RobinShareTests")
     ]
 )
