@@ -81,6 +81,10 @@ jobs:
         run: |
           & "${env:ProgramFiles(x86)}/Inno Setup 6/ISCC.exe" windows/setup.iss
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Installiertes Programm bis zum sichtbaren Fenster starten
+        timeout-minutes: 2
+        shell: pwsh
+        run: ./scripts/test_windows_install.ps1 -Installer dist/RobinsShare-Windows-Setup.exe
       - uses: actions/upload-artifact@v4
         with:
           name: RobinsShare-Windows
@@ -88,7 +92,7 @@ jobs:
           if-no-files-found: error
   release:
     name: Drei Downloads bereitstellen
-    if: github.event_name != 'pull_request'
+    if: github.event_name != 'pull_request' && !contains(github.event.head_commit.message, '[skip release]')
     needs: [server, ios, windows]
     runs-on: ubuntu-latest
     permissions:

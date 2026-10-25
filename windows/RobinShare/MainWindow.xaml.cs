@@ -33,7 +33,7 @@ public partial class MainWindow : Window
     private Identity? Identity=>settings.Identities.GetValueOrDefault(settings.Server);
     private API Client()=>new(settings.Server,Identity?.Token??"");
     private static string DownloadFolder=>Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),"Downloads","Robins Share");
-    public MainWindow()
+    public MainWindow(bool smokeTest=false)
     {
         InitializeComponent();
         ServerAddress.Text=settings.Server;DeviceName.Text=settings.Name;Autostart.IsChecked=settings.AutoStart;ContextIntegration.IsChecked=settings.ContextMenu;
@@ -49,7 +49,7 @@ public partial class MainWindow : Window
         Closing+=(_,e)=>{if(!quitting){e.Cancel=true;Hide();}};
         local.Changed+=()=>Dispatcher.BeginInvoke(()=>{UpdateLocal();RenderInbox();});
         timer.Tick+=async(_,_)=>{timer.Stop();try{await Refresh();}catch{}finally{if(!quitting)timer.Start();}};
-        _=InitializeAsync();
+        if(!smokeTest)_=InitializeAsync();
     }
     private async Task InitializeAsync()
     {
