@@ -44,9 +44,10 @@ jobs:
           cd ios
           xcodegen generate
       - name: Kleine native Tests
+        timeout-minutes: 15
         run: |
           DEVICE=$(xcrun simctl list devices available -j | python3 -c 'import json,sys; d=json.load(sys.stdin); print(next(x["udid"] for key,group in d["devices"].items() if "iOS-26" in key for x in group if "iPhone" in x["name"]))')
-          xcodebuild test -project ios/RobinShare.xcodeproj -scheme RobinShare -destination "platform=iOS Simulator,id=$DEVICE" -resultBundlePath TestResults.xcresult CODE_SIGNING_ALLOWED=NO
+          xcodebuild test -project ios/RobinShare.xcodeproj -scheme RobinShare -destination "platform=iOS Simulator,id=$DEVICE" -parallel-testing-enabled NO -resultBundlePath TestResults.xcresult CODE_SIGNING_ALLOWED=NO
       - name: Geräte-App archivieren und unsignierte IPA packen
         run: |
           xcodebuild archive -project ios/RobinShare.xcodeproj -scheme RobinShare -configuration Release -destination 'generic/platform=iOS' -archivePath build/RobinShare.xcarchive CODE_SIGNING_ALLOWED=NO
@@ -75,6 +76,7 @@ jobs:
       - name: Native Anwendung bauen
         run: dotnet build windows/RobinShare/RobinShare.csproj -c Release
       - name: Kleine native Tests
+        timeout-minutes: 3
         shell: pwsh
         run: |
           $p = Start-Process windows/RobinShare/bin/Release/net10.0-windows10.0.19041.0/win-x64/RobinsShare.exe -ArgumentList '--self-test' -Wait -PassThru

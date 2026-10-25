@@ -11,7 +11,7 @@ public partial class App : System.Windows.Application
     protected override async void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
-        if (e.Args.Contains("--self-test")) { Shutdown(CoreTests.Run()); return; }
+        if (e.Args.Contains("--self-test")) { Shutdown(await Task.Run(CoreTests.Run)); return; }
         mutex = new Mutex(true, @"Local\RobinsShare-"+Environment.UserName, out var first);
         if (!first)
         {

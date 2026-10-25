@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Robins Share • Python 3.11+ • Keine Zusatzpakete • Standardport 5055."""
 from __future__ import annotations
-import argparse, hashlib, hmac, json, mimetypes, os, re, secrets, shutil, sqlite3, threading, time
+import argparse, hashlib, hmac, ipaddress, json, mimetypes, os, re, secrets, shutil, sqlite3, threading, time
 from collections import defaultdict, deque
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -30,6 +30,7 @@ class Store:
         except OSError: pass
         self.lock = threading.RLock()
         self.limits = defaultdict(deque)
+        self.transfer_locks = {}
         with self.db() as db:
             db.executescript('''
             PRAGMA journal_mode=WAL;
@@ -43,6 +44,8 @@ class Store:
         db=sqlite3.connect(self.root/'shares.sqlite3', timeout=30)
         db.row_factory=sqlite3.Row
         return db
+    def transfer_lock(self, ident):
+        with self.lock: return self.transfer_locks.setdefault(ident, threading.RLock())
     def rate(self, ip, bucket, limit=30):
         with self.lock:
             q=self.limits[(ip,bucket)]; t=time.time()
@@ -84,6 +87,17 @@ class Handler(BaseHTTPRequestHandler):
         if args and str(args[0]).startswith(('GET','POST','PUT','DELETE','HEAD')): return
     @property
     def store(self): return self.server.store
+    @property
+    def client_ip(self):
+        direct=self.client_address[0]
+        trusted={p.strip() for p in os.getenv("ROBINS_TRUSTED_PROXIES","127.0.0.1,::1").split(",")}
+        if direct not in trusted: return direct
+        chain=self.headers.get("X-Forwarded-For", "").split(",")
+        for entry in reversed(chain):
+            try: address=str(ipaddress.ip_address(entry.strip()))
+            except ValueError: continue
+            if address not in trusted: return address
+        return direct
     @property
     def bearer(self): return self.headers.get('Authorization','').removeprefix('Bearer ')
     def respond(self,status=200,data=None,body=None,ctype='application/json; charset=utf-8',extra=None):
@@ -146,7 +160,7 @@ class Handler(BaseHTTPRequestHandler):
         if method=='GET' and path=='/api/config':
             return self.respond(data=dict(ok=True,name='Robins Share',version=VERSION,port=self.server.server_port,max_bytes=store.max_bytes,chunk_bytes=CHUNK,ttl_seconds=store.ttl))
         if method=='POST' and path=='/api/devices':
-            store.rate(self.client_address[0],'register',10)
+            store.rate(self.client_ip,'register',10)
             data=self.json_body(); ident=secrets.token_hex(16); token=secrets.token_urlsafe(32)
             with store.lock,store.db() as db:
                 code=self.fresh_code(db,'devices','code')
@@ -164,7 +178,7 @@ class Handler(BaseHTTPRequestHandler):
                     inbox=db.execute('SELECT * FROM shares WHERE target=? AND ready=1 AND expires>?',(me['id'],time.time())).fetchall()
                 return self.respond(data=dict(ok=True,id=me['id'],pair_code=code,devices=[dict(p) for p in peers],inbox=[store.card(r) for r in inbox]))
             if method=='POST' and path=='/api/devices/pair':
-                store.rate(self.client_address[0],'pair',8)
+                store.rate(self.client_ip,'pair',8)
                 code=str(self.json_body().get('code',''))
                 with store.lock,store.db() as db:
                     peer=db.execute('SELECT * FROM devices WHERE code=? AND code_until>?',(code,time.time())).fetchone()
@@ -179,7 +193,7 @@ class Handler(BaseHTTPRequestHandler):
                     db.execute('UPDATE shares SET target=NULL WHERE owner=? AND target=?',(me['id'],peer))
                 return self.respond(data=dict(ok=True))
         if method=='POST' and path=='/api/transfers':
-            store.rate(self.client_address[0],'create',30); data=self.json_body()
+            store.rate(self.client_ip,'create',30); data=self.json_body()
             try: size=int(data['size'])
             except (KeyError,ValueError,TypeError): raise Problem(400,'Dateigröße fehlt.')
             if size<0 or size>store.max_bytes: raise Problem(413,'Datei überschreitet das Serverlimit.')
@@ -197,7 +211,8 @@ class Handler(BaseHTTPRequestHandler):
         match=re.fullmatch(r'/api/transfers/([a-f0-9]{32})(?:/(content|complete))?',path)
         if match:
             ident,action=match.groups()
-            with store.lock:
+            store.authorize(ident,self.headers.get('Upload-Token',''),True)
+            with store.transfer_lock(ident):
                 r=store.authorize(ident,self.headers.get('Upload-Token',''),True)
                 if method=='GET' and not action: return self.respond(data=dict(ok=True,offset=r['offset'],size=r['size'],ready=bool(r['ready'])))
                 if method=='DELETE' and not action:
@@ -224,7 +239,7 @@ class Handler(BaseHTTPRequestHandler):
                     return self.respond(data=dict(ok=True,pin=r['pin'],link=f"{base}/?share={r['secret']}",transfer=store.card(r)))
         match=re.fullmatch(r'/api/lookup/(pin|link)/([^/]+)',path)
         if method=='GET' and match:
-            kind,key=match.groups(); store.rate(self.client_address[0],'lookup',20)
+            kind,key=match.groups(); store.rate(self.client_ip,'lookup',20)
             if kind=='pin' and not re.fullmatch('[0-9]{6}',key): raise Problem(400,'Bitte sechs Ziffern eingeben.')
             with store.db() as db: r=db.execute(f"SELECT * FROM shares WHERE {'pin' if kind=='pin' else 'secret'}=? AND ready=1 AND expires>?",(key,time.time())).fetchone()
             if not r: raise Problem(404,'Code nicht gefunden oder abgelaufen.')
@@ -277,8 +292,20 @@ class Server(ThreadingHTTPServer):
     daemon_threads=True
     request_queue_size=128
     def __init__(self, address, store, public_url=''):
+        self.slots=threading.BoundedSemaphore(64)
         self.store,self.public_url=store,public_url.rstrip('/')
         super().__init__(address,Handler)
+    def process_request(self, request, client_address):
+        if not self.slots.acquire(blocking=False):
+            try: request.sendall(b"HTTP/1.1 503 Service Unavailable\r\nContent-Length: 0\r\nConnection: close\r\nRetry-After: 5\r\n\r\n")
+            finally: self.shutdown_request(request)
+            return
+        try: super().process_request(request,client_address)
+        except Exception:
+            self.slots.release(); raise
+    def process_request_thread(self,request,client_address):
+        try: super().process_request_thread(request,client_address)
+        finally: self.slots.release()
     def service_actions(self):
         if time.monotonic()-getattr(self,'_cleaned',0)>30:
             self.store.cleanup(); self._cleaned=time.monotonic()

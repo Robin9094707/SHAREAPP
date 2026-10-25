@@ -20,13 +20,14 @@ import UIKit
     @Published var error: String?
     var sendTask: Task<Void, Never>?
     private var pollTask: Task<Void, Never>?
-    var api: API { API(base: server, token: identity?.token ?? "") }
+    private var connectedServer = ""
+    var api: API { API(base: connectedServer.isEmpty ? server : connectedServer, token: identity?.token ?? "") }
     func connect() async {
         do {
             let base = try Safety.serverURL(server).absoluteString.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
             let client = API(base: base)
             let _: ServerConfig = try await client.call("/api/config")
-            server = base; identity = Vault.read("device-"+base)
+            server = base; connectedServer = base; identity = Vault.read("device-"+base)
             if identity == nil {
                 let registered: Identity = try await client.call("/api/devices", method: "POST", body: ["name": name, "platform": "ios"])
                 identity = registered; Vault.save(registered, "device-"+base)
@@ -112,7 +113,7 @@ import UIKit
         do {
             guard code.count == 6, code.allSatisfy({ $0.isNumber }) else { throw ShareError.message("Bitte sechs Ziffern eingeben.") }
             let result: Lookup = try await api.call("/api/lookup/pin/\(code)")
-            found = result.transfer; foundBase = server; foundPin = ""
+            found = result.transfer; foundBase = api.base; foundPin = ""
         } catch { self.error = error.localizedDescription }
     }
 }
