@@ -121,6 +121,7 @@ python scripts/package_server.py
 ```bash
 # macOS mit Xcode 26 und XcodeGen
 cd ios
+swift test
 xcodegen generate
 open RobinShare.xcodeproj
 ```
@@ -133,7 +134,7 @@ windows/RobinShare/bin/Release/net10.0-windows10.0.19041.0/win-x64/RobinsShare.e
 dotnet publish windows/RobinShare/RobinShare.csproj -c Release -o dist/windows
 ```
 
-Die CI führt API-/Integritätstests auf Linux, Swift-Tests im iOS-Simulator und kleine native Windows-Tests aus. Anschließend archiviert sie die echte iOS-Geräte-App, erzeugt das Windows-Setup und veröffentlicht die drei Dateien mit Prüfsummen. Grün bedeutet erfolgreicher Build und bestandene automatisierte Tests, keine praktische Geräteprüfung mit einem echten iPhone und Bluetooth-Adapter. Hardware-, Firewall- und Installationstests sind ergänzend erforderlich.
+Die CI führt API-/Integritätstests auf Linux, native Swift-Tests der gemeinsamen Datenmodelle unter macOS und kleine native Windows-Tests aus. Anschließend archiviert sie die echte iOS-Geräte-App, erzeugt das Windows-Setup und veröffentlicht die drei Dateien mit Prüfsummen. Grün bedeutet erfolgreicher Build und bestandene automatisierte Tests, keine praktische Geräteprüfung mit einem echten iPhone und Bluetooth-Adapter. Hardware-, Firewall- und Installationstests sind ergänzend erforderlich.
 
 ## Architektur
 

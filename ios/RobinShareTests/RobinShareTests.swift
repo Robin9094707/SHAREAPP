@@ -1,5 +1,9 @@
 import XCTest
+#if SWIFT_PACKAGE
+@testable import ShareCore
+#else
 @testable import RobinShare
+#endif
 final class RobinShareTests: XCTestCase {
     func testServerURLRejectsUnsafeInputs() throws {
         XCTAssertThrowsError(try Safety.serverURL("http://example.com"))

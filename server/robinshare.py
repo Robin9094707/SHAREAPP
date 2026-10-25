@@ -3,6 +3,7 @@
 from __future__ import annotations
 import argparse, hashlib, hmac, ipaddress, json, mimetypes, os, re, secrets, shutil, sqlite3, threading, time
 from collections import defaultdict, deque
+from contextlib import contextmanager
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -40,10 +41,13 @@ class Store:
             CREATE INDEX IF NOT EXISTS shares_target ON shares(target,ready);
             ''')
         self.cleanup()
+    @contextmanager
     def db(self):
-        db=sqlite3.connect(self.root/'shares.sqlite3', timeout=30)
-        db.row_factory=sqlite3.Row
-        return db
+        connection=sqlite3.connect(self.root/'shares.sqlite3', timeout=30)
+        connection.row_factory=sqlite3.Row
+        try:
+            with connection: yield connection
+        finally: connection.close()
     def transfer_lock(self, ident):
         with self.lock: return self.transfer_locks.setdefault(ident, threading.RLock())
     def rate(self, ip, bucket, limit=30):

@@ -43,11 +43,9 @@ jobs:
           brew install xcodegen
           cd ios
           xcodegen generate
-      - name: Kleine native Tests
-        timeout-minutes: 15
-        run: |
-          DEVICE=$(xcrun simctl list devices available -j | python3 -c 'import json,sys; d=json.load(sys.stdin); print(next(x["udid"] for key,group in d["devices"].items() if "iOS-26" in key for x in group if "iPhone" in x["name"]))')
-          xcodebuild test -project ios/RobinShare.xcodeproj -scheme RobinShare -destination "platform=iOS Simulator,id=$DEVICE" -parallel-testing-enabled NO -resultBundlePath TestResults.xcresult CODE_SIGNING_ALLOWED=NO
+      - name: Kleine native Swift-Tests
+        timeout-minutes: 3
+        run: swift test --package-path ios
       - name: Geräte-App archivieren und unsignierte IPA packen
         run: |
           xcodebuild archive -project ios/RobinShare.xcodeproj -scheme RobinShare -configuration Release -destination 'generic/platform=iOS' -archivePath build/RobinShare.xcarchive CODE_SIGNING_ALLOWED=NO
@@ -60,11 +58,6 @@ jobs:
           name: RobinsShare-iOS
           path: dist/RobinsShare-iOS-unsigniert.ipa
           if-no-files-found: error
-      - uses: actions/upload-artifact@v4
-        if: failure()
-        with:
-          name: iOS-Testdiagnose
-          path: TestResults.xcresult
   windows:
     name: Windows und Setup-EXE
     runs-on: windows-latest
