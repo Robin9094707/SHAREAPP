@@ -18,7 +18,9 @@ public static class FolderPackager
         var destination = destinationFolder ?? Path.Combine(Settings.Folder, "PreparedFolders");
         Directory.CreateDirectory(destination);
         var stem = Safety.Filename(new DirectoryInfo(root).Name);
-        var zipPath = Path.Combine(destination, Guid.NewGuid().ToString("N") + "-" + stem + ".zip");
+        var privateFolder = Path.Combine(destination, Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(privateFolder);
+        var zipPath = Path.Combine(privateFolder, stem + ".zip");
         try
         {
             using var archive = ZipFile.Open(zipPath, ZipArchiveMode.Create);
@@ -47,6 +49,6 @@ public static class FolderPackager
                 archive.CreateEntry("Leerer Ordner.txt");
             return zipPath;
         }
-        catch { try { File.Delete(zipPath); } catch { } throw; }
+        catch { try { Directory.Delete(privateFolder, true); } catch { } throw; }
     }
 }
