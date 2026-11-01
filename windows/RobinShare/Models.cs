@@ -78,51 +78,96 @@ public sealed class API : IDisposable
     }
     public async Task<ShareResult> Send(string path,string? target,IProgress<double> progress,CancellationToken ct)
     {
-        var file=new FileInfo(path); var config=await Call<ServerConfig>("/api/config",ct:ct);
-        if(file.Length>config.MaxBytes) throw new Exception("Die Datei überschreitet das Serverlimit.");
-        var upload=await Call<Upload>("/api/transfers",HttpMethod.Post,new{filename=file.Name,size=file.Length,mime="application/octet-stream",target_id=target},ct:ct);
-        var headers=new Dictionary<string,string>{{"Upload-Token",upload.UploadToken}};
-        long offset=0;
-        try
+        var file=new FileInfo(path);
+        var config=await Call<ServerConfig>("/api/config",ct:ct);
+        if(file.Length>config.MaxBytes)throw new Exception("Die Datei überschreitet das Serverlimit.");
+        var checkpoint=UploadJournal.Find(Base.AbsoluteUri,path,target,file.Length);
+        Upload upload;
+        long offset;
+        if(checkpoint!=null)
         {
-            await using var source=new FileStream(path,FileMode.Open,FileAccess.Read,FileShare.Read,1024*1024,true);
-            var buffer=new byte[Math.Clamp(config.ChunkBytes,65536,8*1024*1024)];
-            while(offset<file.Length)
+            try
             {
-                for(var attempt=0;;attempt++)
+                var state=await Call<JsonElement>($"/api/transfers/{checkpoint.UploadId}",
+                    headers:new(){{"Upload-Token",checkpoint.UploadToken}},ct:ct);
+                offset=state.GetProperty("offset").GetInt64();
+                if(offset<0 || offset>file.Length)throw new InvalidDataException("Ungültige Serverposition.");
+                upload=new Upload(checkpoint.UploadId,checkpoint.UploadToken,offset,config.ChunkBytes);
+            }
+            catch(HttpRequestException e) when(e.StatusCode is System.Net.HttpStatusCode.NotFound or System.Net.HttpStatusCode.Forbidden)
+            {
+                UploadJournal.Finish(checkpoint);
+                checkpoint=null;
+                upload=null!;
+                offset=0;
+            }
+        }
+        else {upload=null!;offset=0;}
+        if(checkpoint==null)
+        {
+            upload=await Call<Upload>("/api/transfers",HttpMethod.Post,
+                new{filename=file.Name,size=file.Length,mime="application/octet-stream",target_id=target},ct:ct);
+            checkpoint=new UploadCheckpoint(Base.AbsoluteUri,path,target,file.Length,upload.Id,upload.UploadToken,DateTime.UtcNow);
+            UploadJournal.Record(checkpoint);
+            offset=upload.Offset;
+        }
+        var headers=new Dictionary<string,string>{{"Upload-Token",upload.UploadToken}};
+        progress.Report(file.Length==0?1:(double)offset/file.Length);
+        await using var source=new FileStream(path,FileMode.Open,FileAccess.Read,FileShare.Read,1024*1024,true);
+        var buffer=new byte[Math.Clamp(config.ChunkBytes,65536,8*1024*1024)];
+        while(offset<file.Length)
+        {
+            var delivered=false;
+            for(var attempt=0;attempt<6;attempt++)
+            {
+                try
                 {
+                    ct.ThrowIfCancellationRequested();
+                    source.Position=offset;
+                    var read=await source.ReadAsync(buffer.AsMemory(0,(int)Math.Min(buffer.Length,file.Length-offset)),ct);
+                    if(read==0)throw new Exception("Die Quelldatei wurde verändert.");
+                    using var request=new HttpRequestMessage(HttpMethod.Put,Safety.Endpoint(Base,$"/api/transfers/{upload.Id}/content"));
+                    request.Headers.TryAddWithoutValidation("Upload-Token",upload.UploadToken);
+                    request.Headers.TryAddWithoutValidation("Upload-Offset",offset.ToString());
+                    if(Token!="")request.Headers.Authorization=new AuthenticationHeaderValue("Bearer",Token);
+                    request.Content=new ByteArrayContent(buffer,0,read);
+                    request.Content.Headers.ContentType=new MediaTypeHeaderValue("application/octet-stream");
+                    using var response=await http.SendAsync(request,ct);
+                    response.EnsureSuccessStatusCode();
+                    var data=JsonDocument.Parse(await response.Content.ReadAsStringAsync(ct));
+                    var next=data.RootElement.GetProperty("offset").GetInt64();
+                    if(next<=offset || next>file.Length)throw new InvalidDataException("Ungültige Uploadposition.");
+                    offset=next;
+                    progress.Report((double)offset/file.Length);
+                    delivered=true;
+                    break;
+                }
+                catch when(attempt<5 && !ct.IsCancellationRequested)
+                {
+                    await Task.Delay(TimeSpan.FromSeconds(Math.Min(1<<attempt,20)),ct);
                     try
                     {
-                        ct.ThrowIfCancellationRequested(); source.Position=offset;
-                        var read=await source.ReadAsync(buffer.AsMemory(0,(int)Math.Min(buffer.Length,file.Length-offset)),ct);
-                        if(read==0) throw new Exception("Die Quelldatei wurde verändert.");
-                        using var r=new HttpRequestMessage(HttpMethod.Put,Safety.Endpoint(Base,$"/api/transfers/{upload.Id}/content"));
-                        r.Headers.TryAddWithoutValidation("Upload-Token",upload.UploadToken);
-                        r.Headers.TryAddWithoutValidation("Upload-Offset",offset.ToString());
-                        if(Token!="")r.Headers.Authorization=new AuthenticationHeaderValue("Bearer",Token);
-                        r.Content=new ByteArrayContent(buffer,0,read); r.Content.Headers.ContentType=new MediaTypeHeaderValue("application/octet-stream");
-                        using var response=await http.SendAsync(r,ct);
-                        response.EnsureSuccessStatusCode();
-                        var data=JsonDocument.Parse(await response.Content.ReadAsStringAsync(ct));
-                        offset=data.RootElement.GetProperty("offset").GetInt64();
-                        progress.Report(file.Length==0?1:(double)offset/file.Length); break;
-                    }
-                    catch when(attempt<3 && !ct.IsCancellationRequested)
-                    {
-                        await Task.Delay(TimeSpan.FromSeconds(attempt+1),ct);
                         var state=await Call<JsonElement>($"/api/transfers/{upload.Id}",headers:headers,ct:ct);
-                        offset=state.GetProperty("offset").GetInt64();
+                        var serverOffset=state.GetProperty("offset").GetInt64();
+                        if(serverOffset>=offset && serverOffset<=file.Length)
+                        {
+                            offset=serverOffset;
+                            progress.Report(file.Length==0?1:(double)offset/file.Length);
+                            if(offset==file.Length){delivered=true;break;}
+                        }
                     }
+                    catch(OperationCanceledException){throw;}
+                    catch { /* Next attempt will reconcile against the server. */ }
                 }
             }
-            var result=await Call<ShareResult>($"/api/transfers/{upload.Id}/complete",HttpMethod.Post,new{},headers,ct);
-            progress.Report(1); return result;
+            if(!delivered)throw new IOException("Die Verbindung ist unterbrochen. Später erneut senden, um fortzufahren.");
         }
-        catch
-        {
-            try{await Call<JsonElement>($"/api/transfers/{upload.Id}",HttpMethod.Delete,headers:headers,ct:CancellationToken.None);}catch{}
-            throw;
-        }
+        ct.ThrowIfCancellationRequested();
+        var result=await Call<ShareResult>($"/api/transfers/{upload.Id}/complete",
+            HttpMethod.Post,new{},headers,ct);
+        UploadJournal.Finish(checkpoint);
+        progress.Report(1);
+        return result;
     }
     public async Task<string> Download(Transfer t,string directory,IProgress<double> progress,CancellationToken ct)
     {
