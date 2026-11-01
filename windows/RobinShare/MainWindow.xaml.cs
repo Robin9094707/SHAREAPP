@@ -135,7 +135,12 @@ public partial class MainWindow : Window
         var row=new WrapPanel();var accept=new Button{Content="Annehmen",IsEnabled=!active.Contains(transfer.Id)};var reject=new Button{Content="Ablehnen",IsEnabled=!active.Contains(transfer.Id)};
         accept.Click+=async(_,_)=>{
             if(!active.Add(transfer.Id))return;accept.IsEnabled=false;reject.IsEnabled=false;Progress.Visibility=Visibility.Visible;
-            try{using var client=Client();var path=await client.Download(transfer,DownloadFolder,new Progress<double>(p=>Progress.Value=p*100),CancellationToken.None);Status.Text="Gespeichert und geprüft: "+path;if(Found.Children.Contains(panel.Parent as UIElement))Found.Children.Clear();await Refresh();}
+            try{using var client=Client();var path=await client.Download(transfer,DownloadFolder,new Progress<double>(p=>{
+                    Progress.Value=p*100;
+                    var total=new FileInfo(path).Length;
+                    var speed=watch.Elapsed.TotalSeconds>0.1?total*p/watch.Elapsed.TotalSeconds:0;
+                    Status.Text=$"Sende {Path.GetFileName(path)} · {p:P0} · {Size((long)speed)}/s";
+                }),CancellationToken.None);Status.Text="Gespeichert und geprüft: "+path;if(Found.Children.Contains(panel.Parent as UIElement))Found.Children.Clear();await Refresh();}
             catch(Exception e){Fail(e);}finally{active.Remove(transfer.Id);Progress.Visibility=Visibility.Collapsed;RenderInbox();accept.IsEnabled=true;reject.IsEnabled=true;}
         };
         reject.Click+=async(_,_)=>{if(MessageBox.Show("Diese Serverkopie endgültig löschen?","Robins Share",MessageBoxButton.YesNo)!=MessageBoxResult.Yes)return;try{using var client=Client();await client.Call<JsonElement>(transfer.AckUrl,HttpMethod.Post,new{});Found.Children.Clear();await Refresh();}catch(Exception e){Fail(e);}};
@@ -155,13 +160,14 @@ public partial class MainWindow : Window
             foreach(var path in paths.ToArray())
             {
                 Status.Text="Sende "+Path.GetFileName(path)+" …";Progress.Value=0;
+                var watch=Stopwatch.StartNew();
                 if(target.StartsWith("local:")){await local.QueueOutgoing(path,target[6..],transferStop.Token);ShareResults.Text+=Path.GetFileName(path)+": auf dem iPhone in Empfangen annehmen.\n";}
                 else{using var client=Client();var result=await client.Send(path,target==""?null:target,new Progress<double>(p=>Progress.Value=p*100),transferStop.Token);ShareResults.Text+=Path.GetFileName(path)+"\nCode: "+result.Pin+"\n"+result.Link+"\n\n";}
                 paths.Remove(path);
             }
             Status.Text=target.StartsWith("local:")?"Bereit zum direkten Abruf. Öffne Empfangen auf deinem iPhone.":"Deine Dateien sind bereit.";
         }
-        catch(OperationCanceledException){Status.Text="Senden abgebrochen. Die übrigen Dateien bleiben in deiner Auswahl.";}
+        catch(OperationCanceledException){Status.Text="Upload pausiert. Beim erneuten Senden wird die Serverposition geprüft.";}
         catch(Exception error){Fail(error);}
         finally{sending=false;SendButton.IsEnabled=true;ClearFiles.IsEnabled=true;CancelButton.IsEnabled=false;Target.IsEnabled=true;Progress.Visibility=Visibility.Collapsed;transferStop.Dispose();transferStop=null;}
     }
