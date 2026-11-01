@@ -135,12 +135,7 @@ public partial class MainWindow : Window
         var row=new WrapPanel();var accept=new Button{Content="Annehmen",IsEnabled=!active.Contains(transfer.Id)};var reject=new Button{Content="Ablehnen",IsEnabled=!active.Contains(transfer.Id)};
         accept.Click+=async(_,_)=>{
             if(!active.Add(transfer.Id))return;accept.IsEnabled=false;reject.IsEnabled=false;Progress.Visibility=Visibility.Visible;
-            try{using var client=Client();var path=await client.Download(transfer,DownloadFolder,new Progress<double>(p=>{
-                    Progress.Value=p*100;
-                    var total=new FileInfo(path).Length;
-                    var speed=watch.Elapsed.TotalSeconds>0.1?total*p/watch.Elapsed.TotalSeconds:0;
-                    Status.Text=$"Sende {Path.GetFileName(path)} · {p:P0} · {Size((long)speed)}/s";
-                }),CancellationToken.None);Status.Text="Gespeichert und geprüft: "+path;if(Found.Children.Contains(panel.Parent as UIElement))Found.Children.Clear();await Refresh();}
+            try{using var client=Client();var path=await client.Download(transfer,DownloadFolder,new Progress<double>(p=>Progress.Value=p*100),CancellationToken.None);Status.Text="Gespeichert und geprüft: "+path;if(Found.Children.Contains(panel.Parent as UIElement))Found.Children.Clear();await Refresh();}
             catch(Exception e){Fail(e);}finally{active.Remove(transfer.Id);Progress.Visibility=Visibility.Collapsed;RenderInbox();accept.IsEnabled=true;reject.IsEnabled=true;}
         };
         reject.Click+=async(_,_)=>{if(MessageBox.Show("Diese Serverkopie endgültig löschen?","Robins Share",MessageBoxButton.YesNo)!=MessageBoxResult.Yes)return;try{using var client=Client();await client.Call<JsonElement>(transfer.AckUrl,HttpMethod.Post,new{});Found.Children.Clear();await Refresh();}catch(Exception e){Fail(e);}};
