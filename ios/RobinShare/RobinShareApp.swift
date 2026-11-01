@@ -12,10 +12,22 @@ import UniformTypeIdentifiers
             ContentView().environmentObject(model).environmentObject(nearby).environmentObject(downloads)
                 .task {
                     if ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil { return }
-                    downloads.reload(); _ = downloads.session; await model.connect(); model.startPolling()
+                    downloads.reload()
+                    _ = downloads.session
+                    _ = BackgroundChunks.shared.session
+                    downloads.reconnectTasks()
+                    nearby.startNetwork()
+                    nearby.scanBluetooth()
+                    await model.connect()
+                    model.startPolling()
                 }
                 .onChange(of: phase) { _, value in
-                    if value == .active { model.startPolling(); downloads.reload() }
+                    if value == .active {
+                        model.startPolling()
+                        downloads.reload()
+                        downloads.reconnectTasks()
+                        nearby.startNetwork()
+                    }
                     else { model.stopPolling(); nearby.stop() }
                 }
         }
@@ -92,6 +104,8 @@ struct ContentView: View {
                     if model.sending { ProgressView(value: model.progress); Button("Abbrechen", role: .destructive) { model.sendTask?.cancel() } }
                     Button { model.send(target: target) } label: { Label("Jetzt senden", systemImage: "arrow.up").frame(maxWidth: .infinity).padding(8) }.buttonStyle(.glassProminent).disabled(model.selectedFiles.isEmpty || model.sending || model.importing)
                     Text(model.status).font(.footnote).foregroundStyle(.secondary)
+                    Text("Im Hintergrund übernimmt iOS laufende Dateiblöcke. Unterbrochene Uploads lassen sich mit „Jetzt senden“ fortsetzen.")
+                        .font(.caption2).foregroundStyle(.tertiary)
                     ForEach(model.latest, id: \.transfer.id) { result in
                         VStack(alignment: .leading, spacing: 10) {
                             Text(result.transfer.filename).font(.headline)
