@@ -126,9 +126,16 @@ import UIKit
                     try Task.checkCancellation()
                     status = "Sende \(displayName(file)) …"
                     let filename = displayName(file)
+                    let liveID = UUID().uuidString
+                    TransferActivityCenter.shared.start(id: liveID, filename: filename, direction: "Senden")
+                    var completed = false
+                    defer {
+                        TransferActivityCenter.shared.finish(id: liveID,
+                            message: completed ? "Abgeschlossen" : "Pausiert")
+                    }
                     let result: ShareResult
                     do {
-                        result = try await client.upload(file, filename: filename, target: deviceID) { self.progress = $0 }
+                        result = try await client.upload(file, filename: filename, target: deviceID) { self.progress = $0; TransferActivityCenter.shared.update(id: liveID, fraction: $0) }
                     } catch let failure as URLError {
                         // A transport outage can switch to the configured public HTTPS server.
                         // The remote server starts its own upload; no local bytes are reused.
@@ -145,6 +152,7 @@ import UIKit
                             ? "Datei über Internet gesichert. Teile den angezeigten Code mit dem Empfänger."
                             : "Datei über Internet an den gekoppelten PC gesendet."
                     }
+                    completed = true
                     latest.append(result)
                     removeFile(file)
                 }
