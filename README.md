@@ -2,6 +2,16 @@
 
 Eine deutsche Suite für Dateifreigaben: ein eigenständiger Server mit Weboberfläche, eine native SwiftUI-App für iPhone/iPad und ein natives Windows-11-Programm mit WPF Fluent. Der bestehende Webport **5055** bleibt erhalten.
 
+## Neu in Version 1.1.0 – robuste Transfers und Systemintegration
+
+- **iOS 26+ Liquid Glass:** native SwiftUI-Elemente bleiben erhalten. Neue **Live Activities** zeigen Sende- und Empfangsfortschritt auf Sperrbildschirm und Dynamic Island (auf unterstützten iPhones).
+- **iOS-Hintergrund-Upload:** Datei-Blöcke werden als dateibasierte Aufgaben an eine eigene `URLSessionConfiguration.background` übergeben. iOS kann den aktiven HTTP-Block auch bei suspendierter App verarbeiten. Folgeblöcke werden erst dann gestartet, wenn das System die App dafür ausführt.
+- **Wiederaufnahme:** Windows und iOS speichern Upload-ID und Upload-Token verschlüsselt bzw. im Schlüsselbund. Beim nächsten Versuch wird zuerst der echte Server-Offset abgefragt. Vorbereitete iOS-Dateien werden nach App-Neustart erneut angeboten. Die Gegenstelle muss den Upload noch vorhalten; Standardablaufzeit ist eine Stunde.
+- **Verbindungswechsel:** Fällt ein lokaler iOS-Upload durch einen Transportfehler aus, versucht die App den bekannten öffentlichen HTTPS-Server. Stimmen Windows-Gerätename und Serverkopplung überein, geht die Datei in dessen Posteingang; andernfalls entsteht ein weiterzugebender Code. Bereits lokal gesendete Bytes werden nicht automatisch zwischen den verschiedenen Servern übernommen.
+- **Windows 11:** native .NET-10-WPF-Fluent-Oberfläche mit Windows-Systemdesign, größere Navigation, systemeigene Akzentfarbe, Uploadgeschwindigkeit und fortsetzbare Uploads.
+
+**Wichtige Grenzen:** Kein Betriebssystem garantiert einen niemals unterbrochenen Transfer. Erzwingt man auf iOS das Beenden der App, storniert das System laufende Hintergrundübertragungen. Bluetooth LE ermöglicht hier weiterhin die **Geräteerkennung**, nicht den Transport großer Dateien. Windows verwendet natives WPF-Fluent (mit Windows-11-Mica), **nicht WinUI 3**. Eine Live Activity ist nur die Statusanzeige, keine Umgehung der iOS-Hintergrundregeln.
+
 ## Korrekturen in App-Version 1.0.1
 
 - Windows: Ein PNG-komprimiertes ICO wurde vom WPF-Bilddecoder beim Fensterstart abgelehnt. Das Icon verwendet jetzt klassische DIB-Bilder. Die CI prüft den WPF-Decoder und startet das vollständig installierte Programm bis zum tatsächlich gerenderten Fenster, auch aus einem anderen Arbeitsverzeichnis.
@@ -62,7 +72,7 @@ Alten Prozess stoppen, neue Einzeldatei starten, Proxy auf Port 5055 beibehalten
 
 Jede Datei bekommt einen eigenen Code. Der Browser lädt beim Speichern über den nativen Downloadmanager; nach Prüfung kann die Serverkopie mit einer Bestätigung entfernt werden. Native Apps prüfen Größe und SHA-256 vor dem Speichern und quittieren erst danach. Spätestens mit Ablauf der Freigabe entfernt der Server die Kopie. Wer einen gültigen Code besitzt, hat Zugriff auf die Datei und kann die Serverkopie über die dazugehörige Freigabeberechtigung löschen.
 
-Uploads erfolgen in Blöcken bis 8 MiB mit begrenztem Speicherbedarf. Unterbrechungen werden innerhalb des aktiven Uploads mit Offset-Abfrage wiederholt. Ein kompletter Prozess-/Browser-Neustart setzt einen Upload nicht automatisch fort. Windows-Downloads können vorhandene `.partial`-Dateien über HTTP-Range weiterladen. iOS nutzt für Downloads eine Background-URLSession; die Kontrolle über deren Fortführung hat iOS.
+Uploads erfolgen in Blöcken bis 8 MiB mit begrenztem Speicherbedarf. Unterbrechungen werden innerhalb des aktiven Uploads mit Offset-Abfrage wiederholt. Ein Browserneustart setzt einen Upload nicht automatisch fort. Die nativen Windows- und iOS-Apps können während der Server-Aufbewahrungsfrist die gespeicherte Upload-ID erneut verwenden. Windows-Downloads können vorhandene `.partial`-Dateien über HTTP-Range weiterladen. iOS nutzt für Downloads eine Background-URLSession; die Kontrolle über deren Fortführung hat iOS.
 
 ## iPhone / iPad
 
@@ -70,8 +80,9 @@ Uploads erfolgen in Blöcken bis 8 MiB mit begrenztem Speicherbedarf. Unterbrech
 - Konfigurierbarer HTTPS-Server, Codefreigaben und Posteingang.
 - Empfangene Dateien unter **Dateien → Auf meinem iPhone → Robins Share → Empfangen**.
 - Teilen gespeicherter Dateien über das iOS-Teilen-Menü.
-- Dateien über die Dateien-Auswahl importieren; fürs zuverlässige Senden offen lassen. Große Quelldateien werden zuerst in die App kopiert, dafür wird zusätzlicher freier Speicher benötigt.
-- Downloads im Hintergrund, Größen-/SHA-256-Prüfung vor Ablage.
+- Dateien über die Dateien-Auswahl importieren. Große Quelldateien werden zuerst in die App kopiert, dafür wird zusätzlicher freier Speicher benötigt. Bereits vorbereitete Dateien bleiben nach einem Neustart in der Sendeauswahl.
+- Downloads über Apples Hintergrunddienst, Größen-/SHA-256-Prüfung vor Ablage. Upload-Blöcke laufen ebenfalls über eine Hintergrund-URLSession; Fortsetzung weiterer Blöcke ist von iOS abhängig.
+- Live Activities für laufende Transfers auf dem Sperrbildschirm und in der Dynamic Island; Anzeige kann bei längeren Systempausen veralten.
 - Bonjour im lokalen Netz; optionale Bluetooth-LE-Suche für kompatible Windows-PCs.
 - Geräteberechtigungen in der iOS-App im Schlüsselbund, keine Tokens in URLs der Einstellungen.
 
@@ -84,6 +95,7 @@ In den Repository-Secrets einrichten:
 - `IOS_CERTIFICATE_P12_BASE64`: Base64-codiertes Apple-Distribution-Zertifikat mit privatem Schlüssel.
 - `IOS_CERTIFICATE_PASSWORD`: Passwort dieses P12.
 - `IOS_PROVISIONING_PROFILE_BASE64`: Base64-codiertes Ad-hoc-Provisioningprofil für `eu.rjuhas.robinshare`, inklusive Zielgeräte.
+- `IOS_WIDGET_PROVISIONING_PROFILE_BASE64`: separates Provisioningprofil für die Live-Activity-Extension `eu.rjuhas.robinshare.liveactivity`.
 - `IOS_TEAM_ID`: Apple-Developer-Team-ID.
 
 Dann **Actions → Signierte iOS-App → Run workflow** ausführen. Zertifikate werden nur im temporären Runner-Keychain installiert und danach entfernt. Der Standardworkflow benötigt diese Secrets nicht und kennzeichnet seine IPA ausdrücklich als unsigniert.
@@ -96,7 +108,7 @@ Dann **Actions → Signierte iOS-App → Run workflow** ausführen. Zertifikate 
 - Optionales Dateikontextmenü **Mit Robins Share an iPhone senden** unter Windows 11 gegebenenfalls in **Weitere Optionen anzeigen**. Der Explorer übergibt die Datei an die bereits laufende Instanz.
 - Windows-Integration in **Einstellungen** aktivieren. Sie gilt nur für das aktuelle Benutzerkonto und benötigt keine Administratorrechte.
 - Downloadordner: `Downloads\Robins Share`.
-- Einstellungen und Token mit Windows-DPAPI für das aktuelle Benutzerkonto geschützt.
+- Einstellungen und Token mit Windows-DPAPI für das aktuelle Benutzerkonto geschützt. Upload-Zwischenstände und deren Tokens sind ebenfalls DPAPI-geschützt.
 
 ### Direkt vom iPhone zum PC – ohne Serverkopie
 
