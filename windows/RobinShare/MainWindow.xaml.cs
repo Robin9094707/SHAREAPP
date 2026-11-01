@@ -155,13 +155,14 @@ public partial class MainWindow : Window
             foreach(var path in paths.ToArray())
             {
                 Status.Text="Sende "+Path.GetFileName(path)+" …";Progress.Value=0;
+                var watch=Stopwatch.StartNew();
                 if(target.StartsWith("local:")){await local.QueueOutgoing(path,target[6..],transferStop.Token);ShareResults.Text+=Path.GetFileName(path)+": auf dem iPhone in Empfangen annehmen.\n";}
                 else{using var client=Client();var result=await client.Send(path,target==""?null:target,new Progress<double>(p=>Progress.Value=p*100),transferStop.Token);ShareResults.Text+=Path.GetFileName(path)+"\nCode: "+result.Pin+"\n"+result.Link+"\n\n";}
                 paths.Remove(path);
             }
             Status.Text=target.StartsWith("local:")?"Bereit zum direkten Abruf. Öffne Empfangen auf deinem iPhone.":"Deine Dateien sind bereit.";
         }
-        catch(OperationCanceledException){Status.Text="Senden abgebrochen. Die übrigen Dateien bleiben in deiner Auswahl.";}
+        catch(OperationCanceledException){Status.Text="Upload pausiert. Beim erneuten Senden wird die Serverposition geprüft.";}
         catch(Exception error){Fail(error);}
         finally{sending=false;SendButton.IsEnabled=true;ClearFiles.IsEnabled=true;CancelButton.IsEnabled=false;Target.IsEnabled=true;Progress.Visibility=Visibility.Collapsed;transferStop.Dispose();transferStop=null;}
     }

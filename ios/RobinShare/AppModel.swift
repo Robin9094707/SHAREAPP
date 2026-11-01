@@ -9,7 +9,9 @@ import UIKit
     @Published var state: DeviceState?
     @Published var localPeers: [LocalPeer] = Vault.read("local-peers") ?? []
     @Published var directInbox: [String: [Transfer]] = [:]
-    @Published var selectedFiles: [URL] = []
+    @Published var selectedFiles: [URL] = [] {
+        didSet { UserDefaults.standard.set(selectedFiles.map(\.path), forKey: "staged-file-paths") }
+    }
     @Published var importing = false
     @Published var sending = false
     @Published var progress: Double = 0
@@ -23,6 +25,13 @@ import UIKit
     private var pollTask: Task<Void, Never>?
     private var connectedServer = ""
     var api: API { API(base: connectedServer.isEmpty ? server : connectedServer, token: identity?.token ?? "") }
+    init() {
+        // Staged copies live in Application Support; preserve them across relaunches.
+        let saved = UserDefaults.standard.stringArray(forKey: "staged-file-paths") ?? []
+        selectedFiles = saved.map { URL(fileURLWithPath: $0) }.filter {
+            FileManager.default.fileExists(atPath: $0.path)
+        }
+    }
     func connect() async {
         do {
             let base = try Safety.serverURL(server).absoluteString.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
@@ -100,21 +109,62 @@ import UIKit
     func removeFile(_ url: URL) { try? FileManager.default.removeItem(at: url); selectedFiles.removeAll { $0 == url } }
     func send(target: String) {
         guard !sending, !importing, !selectedFiles.isEmpty else { return }
-        let local = localPeers.first { "local:"+$0.id == target }
+        let local = localPeers.first { "local:" + $0.id == target }
         let client = local.map { API(base: $0.url, token: $0.token, pin: $0.fingerprint) } ?? api
         let deviceID = target.isEmpty || local != nil ? nil : target
-        sending = true; progress = 0; latest = []
+        sending = true
+        progress = 0
+        latest = []
         sendTask = Task {
-            let backgroundID = UIApplication.shared.beginBackgroundTask(withName: "Datei senden") { [weak self] in self?.sendTask?.cancel() }
-            defer { self.sending = false; if backgroundID != .invalid { UIApplication.shared.endBackgroundTask(backgroundID) } }
+            let backgroundID = UIApplication.shared.beginBackgroundTask(withName: "Datei senden") {}
+            defer {
+                self.sending = false
+                if backgroundID != .invalid { UIApplication.shared.endBackgroundTask(backgroundID) }
+            }
             do {
                 for file in selectedFiles {
+                    try Task.checkCancellation()
                     status = "Sende \(displayName(file)) …"
-                    let result = try await client.upload(file, filename: displayName(file), target: deviceID) { self.progress = $0 }
-                    latest.append(result); removeFile(file)
+                    let filename = displayName(file)
+                    let liveID = UUID().uuidString
+                    TransferActivityCenter.shared.start(id: liveID, filename: filename, direction: "Senden")
+                    var completed = false
+                    defer {
+                        TransferActivityCenter.shared.finish(id: liveID,
+                            message: completed ? "Abgeschlossen" : "Pausiert")
+                    }
+                    let result: ShareResult
+                    do {
+                        result = try await client.upload(file, filename: filename, target: deviceID) { self.progress = $0; TransferActivityCenter.shared.update(id: liveID, fraction: $0) }
+                    } catch let failure as URLError {
+                        // A transport outage can switch to the configured public HTTPS server.
+                        // The remote server starts its own upload; no local bytes are reused.
+                        guard local != nil, identity != nil, !Task.isCancelled,
+                              [.timedOut, .cannotConnectToHost, .cannotFindHost, .networkConnectionLost,
+                               .notConnectedToInternet, .dataNotAllowed].contains(failure.code) else { throw failure }
+                        status = "Direktverbindung unterbrochen. Versuche den Internetserver …"
+                        progress = 0
+                        let matched = state?.devices.first {
+                            $0.platform == "windows" && $0.name.caseInsensitiveCompare(local!.name) == .orderedSame
+                        }
+                        result = try await api.upload(file, filename: filename, target: matched?.id) { self.progress = $0 }
+                        status = matched == nil
+                            ? "Datei über Internet gesichert. Teile den angezeigten Code mit dem Empfänger."
+                            : "Datei über Internet an den gekoppelten PC gesendet."
+                    }
+                    completed = true
+                    latest.append(result)
+                    removeFile(file)
                 }
-                status = local == nil ? "Deine Dateien sind bereit." : "Anfrage an den PC gesendet. Bitte dort annehmen."
-            } catch { self.error = error.localizedDescription; status = "Upload angehalten. Datei kann erneut gesendet werden." }
+                if status.hasPrefix("Sende ") {
+                    status = local == nil ? "Deine Dateien sind bereit." : "Anfrage an den PC gesendet. Bitte dort annehmen."
+                }
+            } catch is CancellationError {
+                status = "Upload pausiert. Deine Dateien bleiben für den nächsten Versuch gespeichert."
+            } catch {
+                self.error = error.localizedDescription
+                status = "Upload unterbrochen. Beim erneuten Senden wird die Serverposition geprüft."
+            }
         }
     }
     func displayName(_ url: URL) -> String { String(url.lastPathComponent.dropFirst(37)) }

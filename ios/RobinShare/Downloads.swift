@@ -25,6 +25,18 @@ final class Downloads: NSObject, ObservableObject, URLSessionDownloadDelegate {
         let urls = (try? FileManager.default.contentsOfDirectory(at: Self.directory, includingPropertiesForKeys: [.fileSizeKey,.contentModificationDateKey])) ?? []
         files = urls.filter { !$0.lastPathComponent.hasPrefix(".") }.map { SavedFile(url: $0, size: Int64((try? $0.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0)) }.sorted { $0.url.lastPathComponent.localizedStandardCompare($1.url.lastPathComponent) == .orderedAscending }
     }
+    func reconnectTasks() {
+        session.getAllTasks { tasks in
+            DispatchQueue.main.async {
+                for task in tasks {
+                    guard let context = self.context(task) else { continue }
+                    self.progress[context.transfer.id] = max(0, task.progress.fractionCompleted)
+                    TransferActivityCenter.shared.start(id: context.transfer.id,
+                        filename: context.transfer.filename, direction: "Empfangen")
+                }
+            }
+        }
+    }
     func start(_ transfer: Transfer, api: API) throws {
         if progress[transfer.id] != nil { return }
         var r = URLRequest(url: try Safety.endpoint(base: api.base, path: transfer.download_url))
@@ -33,6 +45,9 @@ final class Downloads: NSObject, ObservableObject, URLSessionDownloadDelegate {
         let context = DownloadContext(transfer: transfer, base: api.base, pin: api.pin, token: api.token)
         task.taskDescription = String(data: try JSONEncoder().encode(context), encoding: .utf8)
         progress[transfer.id] = 0
+        DispatchQueue.main.async {
+            TransferActivityCenter.shared.start(id: transfer.id, filename: transfer.filename, direction: "Empfangen")
+        }
         task.resume()
     }
     func context(_ task: URLSessionTask) -> DownloadContext? {
@@ -40,7 +55,11 @@ final class Downloads: NSObject, ObservableObject, URLSessionDownloadDelegate {
     }
     func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didWriteData bytesWritten: Int64, totalBytesWritten: Int64, totalBytesExpectedToWrite: Int64) {
         guard let c = context(downloadTask) else { return }
-        DispatchQueue.main.async { self.progress[c.transfer.id] = Double(totalBytesWritten)/Double(max(1,c.transfer.size)) }
+        DispatchQueue.main.async {
+            let fraction = Double(totalBytesWritten) / Double(max(1, c.transfer.size))
+            self.progress[c.transfer.id] = fraction
+            TransferActivityCenter.shared.update(id: c.transfer.id, fraction: fraction)
+        }
     }
     func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didFinishDownloadingTo location: URL) {
         guard let c = context(downloadTask) else { return }
@@ -56,16 +75,29 @@ final class Downloads: NSObject, ObservableObject, URLSessionDownloadDelegate {
             var destination = Self.directory.appendingPathComponent(name)
             if FileManager.default.fileExists(atPath: destination.path) { destination = Self.directory.appendingPathComponent(UUID().uuidString.prefix(8)+"-"+name) }
             try FileManager.default.moveItem(at: location, to: destination)
-            DispatchQueue.main.async { self.message = "\(name) wurde sicher gespeichert."; self.reload() }
+            DispatchQueue.main.async {
+                self.message = "\(name) wurde sicher gespeichert."
+                self.reload()
+                TransferActivityCenter.shared.finish(id: c.transfer.id)
+            }
             Task {
                 let _: Empty? = try? await API(base: c.base, token: c.token, pin: c.pin).call(c.transfer.ack_url, method: "POST", body: [:])
             }
-        } catch { DispatchQueue.main.async { self.message = error.localizedDescription } }
+        } catch {
+            DispatchQueue.main.async {
+                self.message = error.localizedDescription
+                TransferActivityCenter.shared.finish(id: c.transfer.id, message: "Fehlgeschlagen")
+            }
+        }
         DispatchQueue.main.async { self.progress.removeValue(forKey: c.transfer.id) }
     }
     func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
         guard let error, let c = context(task) else { return }
-        DispatchQueue.main.async { self.progress.removeValue(forKey: c.transfer.id); self.message = "Download unterbrochen: \(error.localizedDescription). Bitte erneut laden." }
+        DispatchQueue.main.async {
+            self.progress.removeValue(forKey: c.transfer.id)
+            self.message = "Download unterbrochen: \(error.localizedDescription). Bitte erneut laden."
+            TransferActivityCenter.shared.finish(id: c.transfer.id, message: "Unterbrochen")
+        }
     }
     func urlSessionDidFinishEvents(forBackgroundURLSession session: URLSession) {
         DispatchQueue.main.async { self.completionHandler?(); self.completionHandler = nil }
@@ -80,7 +112,14 @@ final class Downloads: NSObject, ObservableObject, URLSessionDownloadDelegate {
 }
 final class AppDelegate: NSObject, UIApplicationDelegate {
     func application(_ application: UIApplication, handleEventsForBackgroundURLSession identifier: String, completionHandler: @escaping () -> Void) {
-        Downloads.shared.completionHandler = completionHandler
-        _ = Downloads.shared.session
+        if identifier == "eu.rjuhas.robinshare.uploads" {
+            BackgroundChunks.shared.completionHandler = completionHandler
+            _ = BackgroundChunks.shared.session
+        } else if identifier == "eu.rjuhas.robinshare.downloads" {
+            Downloads.shared.completionHandler = completionHandler
+            _ = Downloads.shared.session
+        } else {
+            completionHandler()
+        }
     }
 }
