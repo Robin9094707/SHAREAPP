@@ -66,9 +66,10 @@ public partial class App : Application
     private static async Task SmokeTest(MainWindow window)
     {
         await Task.Delay(1800);
-        // A native WinUI AppWindow was successfully created and activated.
-        StartupDiagnostics.Result(true, "winui-window-created");
-        Environment.Exit(0);
+        // A native WinUI AppWindow must actually be visible for the installer smoke test.
+        var visible = window.AppWindow.IsVisible && window.Content != null;
+        StartupDiagnostics.Result(visible, visible ? "window-rendered" : "winui-window-not-visible");
+        Environment.Exit(visible ? 0 : 1);
     }
 
     private static async Task ForwardArguments(string[] args)
