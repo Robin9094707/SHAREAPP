@@ -64,7 +64,7 @@
                   </StackPanel>
                 </StackPanel>
                 <StackPanel Orientation="Horizontal" Spacing="10">
-                  <Button Content="Dateien hinzufügen" Click="ChooseFiles" Style="{ThemeResource AccentButtonStyle}"/>
+                  <Button Content="Dateien hinzufügen" Click="ChooseFiles" Style="{StaticResource AccentButtonStyle}"/>
                   <Button Content="Ordner als ZIP" Click="ChooseFolder"/>
                   <Button Content="Einfügen" Click="PasteFiles"/>
                   <Button Content="Leeren" Click="ClearSelection" x:Name="ClearButton"/>
@@ -93,7 +93,7 @@
                 <TextBlock Text="Direkt im WLAN oder weltweit per HTTPS-Link." Style="{StaticResource ShareCaption}"/>
                 <ComboBox x:Name="TargetCombo" Header="Empfänger" HorizontalAlignment="Stretch" DisplayMemberPath="Name" />
                 <StackPanel Orientation="Horizontal" Spacing="10">
-                  <Button x:Name="SendButton" Content="Sicher senden" Style="{ThemeResource AccentButtonStyle}" Click="SendFiles"/>
+                  <Button x:Name="SendButton" Content="Sicher senden" Style="{StaticResource AccentButtonStyle}" Click="SendFiles"/>
                   <Button x:Name="SystemShareButton" Content="Windows-Freigabe" Click="ShareThroughWindows"/>
                   <Button x:Name="CancelButton" Content="Pausieren" Click="Cancel" IsEnabled="False"/>
                 </StackPanel>
@@ -123,7 +123,7 @@
                 <TextBlock Text="Mit einem Code empfangen" Style="{ThemeResource SubtitleTextBlockStyle}"/>
                 <TextBox x:Name="ReceiveCode" Header="Sechsstelliger Freigabecode" MaxLength="6"
                          PlaceholderText="000000" Width="260" HorizontalAlignment="Left"/>
-                <Button Content="Datei suchen" Click="Lookup" Style="{ThemeResource AccentButtonStyle}" HorizontalAlignment="Left"/>
+                <Button Content="Datei suchen" Click="Lookup" Style="{StaticResource AccentButtonStyle}" HorizontalAlignment="Left"/>
                 <StackPanel x:Name="FoundPanel" Spacing="8"/>
               </StackPanel>
             </Border>
@@ -142,7 +142,7 @@
                 <TextBlock Text="Dein eigener Kopplungscode" Style="{StaticResource ShareCaption}"/>
                 <TextBlock x:Name="PairCode" Text="– – – – – –" FontFamily="Consolas" FontSize="30" IsTextSelectionEnabled="True"/>
                 <TextBox x:Name="PeerCode" Header="Code des anderen Geräts" PlaceholderText="000000" MaxLength="6"/>
-                <Button Content="Koppeln" Click="Pair" Style="{ThemeResource AccentButtonStyle}" HorizontalAlignment="Left"/>
+                <Button Content="Koppeln" Click="Pair" Style="{StaticResource AccentButtonStyle}" HorizontalAlignment="Left"/>
                 <StackPanel x:Name="PeersPanel" Spacing="8"/>
               </StackPanel>
             </Border>
@@ -183,7 +183,7 @@
                 <TextBox x:Name="ServerAddress" Header="HTTPS-Serveradresse" PlaceholderText="https://share.rjuhas.eu"/>
                 <TextBox x:Name="DeviceName" Header="Gerätename"/>
                 <StackPanel Orientation="Horizontal" Spacing="10">
-                  <Button Content="Verbinden und speichern" Click="SaveServer" Style="{ThemeResource AccentButtonStyle}"/>
+                  <Button Content="Verbinden und speichern" Click="SaveServer" Style="{StaticResource AccentButtonStyle}"/>
                   <Button Content="Neue Identität" Click="ResetIdentity"/>
                 </StackPanel>
               </StackPanel>
