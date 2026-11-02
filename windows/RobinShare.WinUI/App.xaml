@@ -19,7 +19,7 @@
         <Setter Property="Foreground" Value="{ThemeResource TextFillColorSecondaryBrush}" />
         <Setter Property="TextWrapping" Value="Wrap" />
       </Style>
-      <Style x:Key="ActionButton" TargetType="Button" BasedOn="{StaticResource DefaultButtonStyle}">
+      <Style x:Key="ActionButton" TargetType="Button" >
         <Setter Property="MinHeight" Value="38" />
         <Setter Property="Padding" Value="18,9" />
         <Setter Property="Margin" Value="0,0,9,6" />
