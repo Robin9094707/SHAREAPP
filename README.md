@@ -1,6 +1,42 @@
-# Robins Share Suite
+# SHAREAPP 3.0 · Robins Share Suite
 
 Eine deutsche Suite für Dateifreigaben: ein eigenständiger Server mit Weboberfläche, eine native SwiftUI-App für iPhone/iPad und ein natives Windows-11-Programm mit WPF Fluent. Der bestehende Webport **5055** bleibt erhalten.
+
+## SHAREAPP 3.0 – native Betriebssystemfreigabe
+
+### iOS: AirDrop und kompatible Quick-Share-Geräte
+
+1. Unter **Teilen** eine oder mehrere Dateien auswählen.
+2. **AirDrop / Quick Share** öffnen: SHAREAPP übergibt die Originaldateien mit sauberen Dateinamen an das Apple-Systemfreigabemenü.
+3. **AirDrop** auswählen. Kompatible Android-Handys, deren Quick Share zu AirDrop interoperabel ist und deren Sichtbarkeit entsprechend freigegeben wurde, können ebenfalls als Empfänger erscheinen.
+4. Für jedes andere Smartphone, jeden Computer oder ein Tablet die normale SHAREAPP-Serverfreigabe verwenden: Upload abschließen, QR-Code scannen oder HTTPS-Link öffnen. **Empfänger benötigen dafür keine SHAREAPP-App.**
+
+**Wichtig:** SHAREAPP implementiert *nicht* Googles proprietären Quick-Share-Client oder direkten Zugriff auf dessen Gerätesuche. Die Interoperabilität beruht auf Apples AirDrop und kompatiblen Android-Versionen. Nicht jedes Android-Gerät unterstützt diese Verbindung. Bei inkompatiblen Geräten ist der HTTPS-Link der universelle Weg. Google dokumentiert die kompatiblen Geräte unter https://www.android.com/intl/de_de/quick-share/with-iphone/.
+
+Weitere iOS-Verbesserungen: größere native Liquid-Glass-Aktionen, Quick-Look-Dateivorschau, durchsuchbare Downloads, native Mehrfachfreigabe, QR-Codes ohne externen QR-Generator sowie weiterhin Background-Transfers, Prüfsummen und Live Activities. Die Share-Sheet-Vorbereitung verwendet nach Möglichkeit speichersparende APFS-Hardlinks anstelle doppelter großer Dateikopien.
+
+### Windows 11: Systemfreigabe und ganze Ordner
+
+- Unter **Teilen** Dateien oder ganze Ordner auswählen, hineinziehen oder per **Strg+V** aus dem Explorer übernehmen.
+- Ordner werden in einer eigenen temporären Ablage als standardkonforme ZIP-Datei vorbereitet. Originaldateien bleiben unverändert, Unterordner erhalten ihre Struktur. Verknüpfte/reparse-Ordner werden beim Archivieren aus Sicherheitsgründen ausgelassen.
+- **Mit Windows teilen / Umgebung** öffnet das Windows-11-Freigabemenü über die offiziell dokumentierte `IDataTransferManagerInterop`-Schnittstelle für klassische Desktopanwendungen. Wenn Windows-Umgebungsfreigabe aktiviert ist, kann Windows an andere unterstützte Windows-PCs senden. Zusätzlich können andere im Windows-Share-Sheet registrierte Apps als Ziele erscheinen.
+- **Jetzt senden** bleibt der SHAREAPP-eigene verschlüsselte WLAN-/HTTPS-Weg für iPhone, andere gekoppelte Apps und Browserempfänger.
+- Verbesserte Systemmaterialien unter Windows 11, native Schaltflächen, direkte Dateifreigabe und Kopieraktionen.
+
+**Nicht möglich durch bloße UI-Integration:** Windows-Umgebungsfreigabe wird nicht zu einem offenen Protokoll für iOS. Es gibt keine belegte öffentliche API, über die beliebige iPhone-Apps direkt die Windows-Nearby-Sharing-Geräte auslesen oder Dateien ohne Gegenstück an beliebige Windows-PCs schicken. Dafür bleibt die SHAREAPP-Verbindung oder der Browser-Link zuständig.
+
+### Transport und Zuverlässigkeit
+
+| Übertragung | Anwendung auf Empfängerseite | Technik |
+|---|---|---|
+| iPhone zu kompatiblem Android | Keine SHAREAPP-App | System-AirDrop / Google Quick Share Interoperabilität |
+| Windows zu Windows | Keine SHAREAPP-App | Windows-Freigabe mit Umgebungsfreigabe, falls verfügbar |
+| Beliebiger Sender mit SHAREAPP zu Browser | Nur Browser | HTTPS-Link oder QR-Code |
+| iPhone und Windows mit SHAREAPP | SHAREAPP auf beiden Geräten | Lokales HTTPS über WLAN/Hotspot oder Internetserver |
+| Bluetooth LE | SHAREAPP-Geräteerkennung | Keine Dateiübertragung über BLE |
+| Wi-Fi Direct / Wi-Fi Aware | Noch keine generelle plattformübergreifende Lösung | Nur mit kompatiblen APIs, Hardware und Berechtigungen |
+
+**Keine 409 erfundenen Funktionen:** Version 3.0 konzentriert sich auf tatsächlich implementierte, überprüfbare Funktionsbereiche. Es ist nicht realistisch, direkte Kompatibilität mit jeder proprietären Gerätefreigabe als umgesetzt darzustellen. iOS-Hintergrundaufgaben können durch Systemlimits, Force-Quit oder Netzverlust beendet werden; versprochene 100% unterbrechungsfreie Transfers wären irreführend.
 
 ## Neu in Version 1.1.0 – robuste Transfers und Systemintegration
 
