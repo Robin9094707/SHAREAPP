@@ -47,7 +47,9 @@ public partial class MainWindow : Window
             catch(Exception e) { Status.Text="Windows-Systemfreigabe derzeit nicht verfügbar: "+e.Message; }
         };
         PreviewKeyDown+=(_,e)=>{
-            if(e.Key==Key.V && Keyboard.Modifiers.HasFlag(ModifierKeys.Control)) {
+            if(e.Key==Key.V && Keyboard.Modifiers.HasFlag(ModifierKeys.Control)
+                && Keyboard.FocusedElement is not System.Windows.Controls.Primitives.TextBoxBase
+                && Keyboard.FocusedElement is not System.Windows.Controls.ComboBox) {
                 AddClipboardFiles(); e.Handled=true;
             }
         };
