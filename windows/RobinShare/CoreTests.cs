@@ -1,4 +1,5 @@
 using System.IO;
+using System.IO.Compression;
 using System.Net;
 namespace RobinShare;
 internal static class CoreTests
@@ -24,6 +25,7 @@ internal static class CoreTests
             var json="{\"id\":\"x\",\"filename\":\"video\",\"size\":53687091200,\"mime\":\"file\",\"sha256\":\"abc\",\"expires_at\":1800000000,\"download_url\":\"/api/x\",\"ack_url\":\"/api/x\"}";
             var t=System.Text.Json.JsonSerializer.Deserialize<Transfer>(json,Json.Options)!;Assert(t.Size==50L*1024*1024*1024,"64-Bit-Dateigröße");
             var file=Path.GetTempFileName();try{File.WriteAllText(file,"abc");Assert(Safety.Hash(file).GetAwaiter().GetResult()=="ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad","Streaming-Prüfsumme");}finally{File.Delete(file);}
+            TestFolderArchive();
             LocalRoundTrip().GetAwaiter().GetResult();
             return 0;
         }
@@ -64,6 +66,27 @@ internal static class CoreTests
             var inbox=System.Text.Json.JsonDocument.Parse(await response.Content.ReadAsStringAsync()).RootElement.GetProperty("inbox");Assert(inbox.GetArrayLength()==1,"PC-Datei im iPhone-Posteingang");
             var item=inbox[0];var payload=await client.GetByteArrayAsync(item.GetProperty("download_url").GetString());Assert(payload.SequenceEqual("abc"u8.ToArray()),"PC zu iPhone korrekt übertragen");
             await Post(item.GetProperty("ack_url").GetString()!,new{});Assert(File.Exists(saved),"Originaldatei nach Quittung erhalten");
+        }
+        finally{Directory.Delete(temp,true);}
+    }
+    private static void TestFolderArchive()
+    {
+        var temp=Path.Combine(Path.GetTempPath(),"SHAREAPP3-test-"+Guid.NewGuid().ToString("N"));
+        var source=Path.Combine(temp,"Folder");
+        var nested=Path.Combine(source,"Pictures");
+        var output=Path.Combine(temp,"Output");
+        Directory.CreateDirectory(nested);
+        File.WriteAllText(Path.Combine(source,"readme.txt"),"hello");
+        File.WriteAllBytes(Path.Combine(nested,"photo.bin"),[1,2,3,4]);
+        try
+        {
+            var archive=FolderPackager.Pack(source,output);
+            Assert(Path.GetFileName(archive)=="Folder.zip","Natürlicher ZIP-Dateiname");
+            using var zip=ZipFile.OpenRead(archive);
+            Assert(zip.Entries.Count==2,"Unterordner als ZIP übertragen");
+            Assert(zip.Entries.Any(e=>e.FullName=="Pictures/photo.bin"),"Unterordner erhalten");
+            Assert(zip.Entries.Any(e=>e.FullName=="readme.txt"),"Root-Datei erhalten");
+            Throws(()=>FolderPackager.Pack(Path.Combine(temp,"missing"),output));
         }
         finally{Directory.Delete(temp,true);}
     }

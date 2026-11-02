@@ -7,6 +7,8 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Threading;
+using System.Windows.Input;
+using System.Windows.Interop;
 using Microsoft.Win32;
 using Orientation=System.Windows.Controls.Orientation;
 using Button=System.Windows.Controls.Button;
@@ -30,6 +32,7 @@ public partial class MainWindow : Window
     private CancellationTokenSource? transferStop;
     private bool quitting;
     private bool sending;
+    private WindowsShareBridge? nativeSharing;
     private Identity? Identity=>settings.Identities.GetValueOrDefault(settings.Server);
     private API Client()=>new(settings.Server,Identity?.Token??"");
     private static string DownloadFolder=>Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),"Downloads","Robins Share");
@@ -38,6 +41,18 @@ public partial class MainWindow : Window
         InitializeComponent();
         ServerAddress.Text=settings.Server;DeviceName.Text=settings.Name;Autostart.IsChecked=settings.AutoStart;ContextIntegration.IsChecked=settings.ContextMenu;
         SelectedFiles.ItemsSource=paths;
+        SourceInitialized+=(_,_)=>{
+            Windows11Backdrop.Apply(this);
+            try { nativeSharing=new WindowsShareBridge(new WindowInteropHelper(this).Handle); }
+            catch(Exception e) { Status.Text="Windows-Systemfreigabe derzeit nicht verfügbar: "+e.Message; }
+        };
+        PreviewKeyDown+=(_,e)=>{
+            if(e.Key==Key.V && Keyboard.Modifiers.HasFlag(ModifierKeys.Control)
+                && Keyboard.FocusedElement is not System.Windows.Controls.Primitives.TextBoxBase
+                && Keyboard.FocusedElement is not System.Windows.Controls.ComboBox) {
+                AddClipboardFiles(); e.Handled=true;
+            }
+        };
         local=new(settings);
         var stream=System.Windows.Application.GetResourceStream(new Uri("Assets/RobinShare.ico",UriKind.Relative))?.Stream;
         tray=new System.Windows.Forms.NotifyIcon{Text="Robins Share · Bereit",Visible=true,Icon=stream==null?System.Drawing.SystemIcons.Application:new System.Drawing.Icon(stream)};
@@ -143,7 +158,75 @@ public partial class MainWindow : Window
     }
     private Border Wrap(UIElement child)=>new(){Child=child,Style=(Style)FindResource("Card")};
     private void Notify(string id,string name){if(!notified.Add(id))return;tray.BalloonTipTitle="Neue Datei für dich";tray.BalloonTipText=name+" – in Robins Share annehmen oder ablehnen.";tray.ShowBalloonTip(5000);}
-    public void AddPaths(IEnumerable<string> values){foreach(var path in values)if(File.Exists(path)&&!paths.Contains(path))paths.Add(path);if(paths.Count>0)Pages.SelectedIndex=0;}
+    public void AddPaths(IEnumerable<string> values)
+    {
+        _ = AddPathsAsync(values.ToArray());
+    }
+    private async Task AddPathsAsync(string[] values)
+    {
+        if(sending)return;
+        foreach(var path in values)
+        {
+            try
+            {
+                if(File.Exists(path))
+                {
+                    if(!paths.Contains(path))paths.Add(path);
+                }
+                else if(Directory.Exists(path))
+                {
+                    Status.Text="Ordner wird als ZIP vorbereitet: "+Path.GetFileName(path)+" …";
+                    var zip=await Task.Run(()=>FolderPackager.Pack(path));
+                    if(!paths.Contains(zip))paths.Add(zip);
+                    Status.Text="ZIP erstellt: "+Path.GetFileName(zip);
+                }
+            }
+            catch(Exception error){Fail(error);}
+        }
+        if(paths.Count>0)Pages.SelectedIndex=0;
+    }
+    private void ChooseFolder(object sender,RoutedEventArgs e)
+    {
+        using var picker=new System.Windows.Forms.FolderBrowserDialog
+        {
+            Description="Ordner auswählen – alle Dateien werden zu einer ZIP zusammengefasst",
+            UseDescriptionForTitle=true,
+            ShowNewFolderButton=false
+        };
+        if(picker.ShowDialog()==System.Windows.Forms.DialogResult.OK)
+            AddPaths([picker.SelectedPath]);
+    }
+    private void PasteFiles(object sender,RoutedEventArgs e)=>AddClipboardFiles();
+    private void AddClipboardFiles()
+    {
+        try
+        {
+            if(System.Windows.Clipboard.ContainsFileDropList())
+                AddPaths(System.Windows.Clipboard.GetFileDropList().Cast<string>());
+            else Status.Text="In der Zwischenablage liegen keine Dateien oder Ordner.";
+        }
+        catch(Exception error){Fail(error);}
+    }
+    private void ShareThroughWindows(object sender,RoutedEventArgs e)
+    {
+        try
+        {
+            if(sending)throw new InvalidOperationException("Während eines Transfers ist die Windows-Freigabe nicht verfügbar.");
+            if(nativeSharing==null)throw new InvalidOperationException("Die Windows-Systemfreigabe ist auf diesem Gerät nicht verfügbar.");
+            nativeSharing.Show(paths);
+            Status.Text="Windows-Freigabe geöffnet. Wähle ein unterstütztes Gerät oder eine App.";
+        }
+        catch(Exception error){Fail(error);}
+    }
+    private void CopyResults(object sender,RoutedEventArgs e)
+    {
+        if(!string.IsNullOrWhiteSpace(ShareResults.Text))
+        {
+            System.Windows.Clipboard.SetText(ShareResults.Text);
+            Status.Text="Freigabelinks und Codes kopiert.";
+        }
+        else Status.Text="Nach dem Hochladen erscheinen hier Freigabelinks und Codes.";
+    }
     private void ChooseFiles(object sender,RoutedEventArgs e){var picker=new Microsoft.Win32.OpenFileDialog{Multiselect=true,Title="Dateien zum Senden auswählen"};if(picker.ShowDialog()==true)AddPaths(picker.FileNames);}
     private void ClearSelection(object sender,RoutedEventArgs e){if(!sending)paths.Clear();}
     private async void SendFiles(object sender,RoutedEventArgs e)

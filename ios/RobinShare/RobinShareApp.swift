@@ -1,5 +1,6 @@
 import SwiftUI
 import UniformTypeIdentifiers
+import QuickLook
 
 @main struct RobinShareApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) var delegate
@@ -13,6 +14,7 @@ import UniformTypeIdentifiers
                 .task {
                     if ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil { return }
                     downloads.reload()
+                    NativeShareFiles.clearOldCopies()
                     _ = downloads.session
                     _ = BackgroundChunks.shared.session
                     downloads.reconnectTasks()
@@ -49,6 +51,11 @@ struct ContentView: View {
     @State private var verifyLocal = false
     @State private var tab = 0
     @State private var pendingRemoval: Device?
+    @State private var sharingNatively = false
+    @State private var preparingNativeShare = false
+    @State private var nativeShareFiles: [URL] = []
+    @State private var previewFile: URL?
+    @State private var fileSearch = ""
     var body: some View {
         TabView(selection: $tab) {
             Tab("Teilen", systemImage: "arrow.up.arrow.down", value: 0) { sendView }
@@ -56,6 +63,11 @@ struct ContentView: View {
             Tab("Geräte", systemImage: "laptopcomputer.and.iphone", value: 2) { devicesView }
             Tab("Dateien", systemImage: "folder", value: 3) { filesView }
         }.tint(.indigo)
+        .sheet(isPresented: $sharingNatively) {
+            SystemShareSheet(files: nativeShareFiles)
+                .ignoresSafeArea()
+        }
+        .quickLookPreview($previewFile)
         .sheet(isPresented: $importer, onDismiss: {
             let selection = pendingImports; pendingImports = []
             model.importFiles(selection)
@@ -88,13 +100,37 @@ struct ContentView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 22) {
-                    header("Alles kommt an.", subtitle: "Deine Dateien. Ohne Umwege.", symbol: "arrow.up.right")
+                    header("SHAREAPP 3.0", subtitle: "Eine Datei. Alle Möglichkeiten. Ohne Umwege.", symbol: "square.and.arrow.up")
                     Button { importer = true } label: {
                         VStack(spacing: 14) { Image(systemName: "plus.circle").font(.largeTitle); Text("Dateien auswählen").font(.headline); Text("Fotos, Videos, Dokumente und mehr").font(.caption).foregroundStyle(.secondary) }.frame(maxWidth: .infinity).padding(.vertical, 34)
                     }.buttonStyle(.plain).glassEffect(.regular.interactive(), in: .rect(cornerRadius: 28)).disabled(model.sending || model.importing)
                     ForEach(model.selectedFiles, id: \.self) { file in
                         HStack { Image(systemName: "doc").foregroundStyle(.indigo); Text(model.displayName(file)).lineLimit(1); Spacer(); Button { model.removeFile(file) } label: { Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary) }.disabled(model.sending || model.importing).accessibilityLabel("Datei entfernen") }.padding(.vertical, 5)
                     }
+                    HStack(spacing: 12) {
+                        Button {
+                            preparingNativeShare = true
+                            Task {
+                                do {
+                                    nativeShareFiles = try await NativeShareFiles.prepare(model.selectedFiles)
+                                    sharingNatively = !nativeShareFiles.isEmpty
+                                } catch {
+                                    model.error = "Native Freigabe fehlgeschlagen: " + error.localizedDescription
+                                }
+                                preparingNativeShare = false
+                            }
+                        } label: {
+                            Label("AirDrop / Quick Share", systemImage: "airplayvideo")
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.glassProminent)
+                        .disabled(model.selectedFiles.isEmpty || model.sending || model.importing || preparingNativeShare)
+                    }
+                    if preparingNativeShare {
+                        ProgressView("Native Freigabe wird vorbereitet …")
+                    }
+                    Text("Für kompatible Android-Geräte wird Quick Share über Apples AirDrop-Freigabe unterstützt. Der Empfänger braucht keine SHAREAPP-App. Für andere Geräte erstelle einen Server-Link.")
+                        .font(.caption).foregroundStyle(.secondary)
                     Picker("Senden an", selection: $target) {
                         Text("Code oder Link erstellen").tag("")
                         ForEach(model.state?.devices ?? []) { Text($0.name+" · Server").tag($0.id) }
@@ -110,7 +146,13 @@ struct ContentView: View {
                         VStack(alignment: .leading, spacing: 10) {
                             Text(result.transfer.filename).font(.headline)
                             Text(result.pin).font(.system(size: 34, weight: .semibold, design: .monospaced)).textSelection(.enabled)
-                            HStack { Button("Code kopieren", systemImage: "doc.on.doc") { UIPasteboard.general.string = result.pin }; if let url = URL(string: result.link) { ShareLink(item: url) } }.buttonStyle(.glass)
+                            HStack {
+                                Button("Code kopieren", systemImage: "doc.on.doc") { UIPasteboard.general.string = result.pin }
+                                if let url = URL(string: result.link) { ShareLink(item: url) }
+                            }.buttonStyle(.glass)
+                            if let url = URL(string: result.link), url.scheme == "https" {
+                                ShareQRCard(link: url)
+                            }
                         }.padding(20).frame(maxWidth: .infinity, alignment: .leading).glassEffect(.regular, in: .rect(cornerRadius: 22))
                     }
                 }.padding(24)
@@ -195,12 +237,51 @@ struct ContentView: View {
     var filesView: some View {
         NavigationStack {
             List {
-                Section { Text("Deine Downloads liegen unter Dateien → Auf meinem iPhone → Robins Share → Empfangen. Sie bleiben auch ohne Serververbindung verfügbar.").font(.footnote).foregroundStyle(.secondary) }
-                ForEach(downloads.files) { file in
-                    HStack { Image(systemName: "doc").foregroundStyle(.indigo); VStack(alignment: .leading) { Text(file.url.lastPathComponent).lineLimit(2); Text(ByteCountFormatter.string(fromByteCount: file.size, countStyle: .file)).font(.caption).foregroundStyle(.secondary) }; Spacer(); ShareLink(item: file.url) }
-                }.onDelete { offsets in for index in offsets { try? FileManager.default.removeItem(at: downloads.files[index].url) }; downloads.reload() }
-                if downloads.files.isEmpty { ContentUnavailableView("Dein Platz für Dateien", systemImage: "folder", description: Text("Angenommene Dateien werden hier gespeichert.")) }
-            }.navigationTitle("Deine Dateien").refreshable { downloads.reload() }
+                Section {
+                    Label("Vorschau, Suchen, AirDrop und Quick Share direkt aus deinen Downloads. Alle Dateitypen bleiben im Original erhalten.", systemImage: "folder")
+                        .font(.footnote).foregroundStyle(.secondary)
+                }
+                ForEach(downloads.files.filter {
+                    fileSearch.isEmpty || $0.url.lastPathComponent.localizedCaseInsensitiveContains(fileSearch)
+                }) { file in
+                    HStack(spacing: 12) {
+                        Button {
+                            previewFile = file.url
+                        } label: {
+                            Label {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(file.url.lastPathComponent).lineLimit(2)
+                                    Text(ByteCountFormatter.string(fromByteCount: file.size, countStyle: .file))
+                                        .font(.caption).foregroundStyle(.secondary)
+                                }
+                            } icon: {
+                                Image(systemName: "doc.text.magnifyingglass")
+                            }
+                        }.buttonStyle(.plain)
+                        Spacer(minLength: 0)
+                        ShareLink(item: file.url) {
+                            Image(systemName: "square.and.arrow.up")
+                        }.buttonStyle(.glass).accessibilityLabel("Datei mit AirDrop oder anderen Apps teilen")
+                    }
+                    .swipeActions(edge: .trailing) {
+                        Button("Löschen", role: .destructive) {
+                            try? FileManager.default.removeItem(at: file.url)
+                            downloads.reload()
+                        }
+                    }
+                }
+                if downloads.files.isEmpty {
+                    ContentUnavailableView("Noch keine Downloads", systemImage: "folder", description: Text("Angenommene Dateien werden hier gespeichert und können systemweit geteilt werden."))
+                }
+            }
+            .searchable(text: $fileSearch, prompt: "Dateien durchsuchen")
+            .navigationTitle("Deine Dateien")
+            .refreshable { downloads.reload() }
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Aktualisieren", systemImage: "arrow.clockwise") { downloads.reload() }
+                }
+            }
         }
     }
 }
