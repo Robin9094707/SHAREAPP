@@ -396,7 +396,7 @@ public sealed partial class MainWindow : Window
         if(InboxPanel.Children.Count == 0)
             InboxPanel.Children.Add(new TextBlock {
                 Text = "Noch keine Sendungen. Dein Posteingang wird automatisch aktualisiert.",
-                Foreground = (Brush)AppRoot.Resources["TextFillColorSecondaryBrush"]
+                Opacity = 0.7
             });
     }
 
