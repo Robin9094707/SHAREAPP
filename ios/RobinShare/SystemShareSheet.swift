@@ -9,7 +9,10 @@ struct SystemShareSheet: UIViewControllerRepresentable {
 
     func makeUIViewController(context: Context) -> UIActivityViewController {
         let controller = UIActivityViewController(activityItems: files, applicationActivities: nil)
-        controller.popoverPresentationController?.sourceView = UIView()
+        // Use a real attached view as the iPad popover anchor.
+        controller.popoverPresentationController?.sourceView = controller.view
+        controller.popoverPresentationController?.sourceRect = CGRect(x: controller.view.bounds.midX,
+            y: controller.view.bounds.midY, width: 1, height: 1)
         return controller
     }
     func updateUIViewController(_ controller: UIActivityViewController, context: Context) {}
