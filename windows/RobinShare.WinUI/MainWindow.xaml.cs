@@ -404,7 +404,7 @@ public sealed partial class MainWindow : Window
     private Border CreateTransferCard(Transfer transfer, bool localTransfer)
     {
         var container = new StackPanel { Spacing=12 };
-        container.Children.Add(new TextBlock { Text=transfer.Filename,FontWeight=Windows.UI.Text.FontWeights.SemiBold,TextWrapping=TextWrapping.Wrap });
+        container.Children.Add(new TextBlock { Text=transfer.Filename,FontSize=17,TextWrapping=TextWrapping.Wrap });
         container.Children.Add(new TextBlock { Text=ShareFile.ByteSize(transfer.Size)+" · verschlüsselte Serverfreigabe" });
         var actions = new StackPanel { Orientation=Orientation.Horizontal,Spacing=10 };
         var accept = new Button { Content="Annehmen",IsEnabled=!active.Contains(transfer.Id) };
@@ -442,7 +442,7 @@ public sealed partial class MainWindow : Window
     private Border CreateLocalTransferCard(LocalUpload upload)
     {
         var stack = new StackPanel { Spacing=12 };
-        stack.Children.Add(new TextBlock{Text=upload.Name,FontWeight=Windows.UI.Text.FontWeights.SemiBold,TextWrapping=TextWrapping.Wrap});
+        stack.Children.Add(new TextBlock{Text=upload.Name,FontSize=17,TextWrapping=TextWrapping.Wrap});
         stack.Children.Add(new TextBlock{Text=ShareFile.ByteSize(upload.Size)+" · direkte WLAN-Übertragung"});
         var actions=new StackPanel{Orientation=Orientation.Horizontal,Spacing=10};
         var accept=new Button{Content="Annehmen",IsEnabled=!active.Contains(upload.Id)};
