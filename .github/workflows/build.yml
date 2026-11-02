@@ -112,6 +112,16 @@ jobs:
           name: RobinsShare-Windows
           path: dist/RobinsShare-Windows-Setup.exe
           if-no-files-found: error
+  winui-preview:
+    name: Native WinUI 3 compiles
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Build the native WinUI 3 frontend
+        run: dotnet build windows/RobinShare.WinUI/RobinShare.WinUI.csproj -c Release
   release:
     name: Drei Downloads bereitstellen
     if: github.event_name != 'pull_request' && !contains(github.event.head_commit.message, '[skip release]')
