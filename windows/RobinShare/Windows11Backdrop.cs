@@ -22,7 +22,7 @@ public static class Windows11Backdrop
             int mica = 2; // DWMSBT_MAINWINDOW
             _ = DwmSetWindowAttribute(handle, DwmSystemBackdrop, ref mica, sizeof(int));
             var dark = System.Windows.SystemParameters.HighContrast ? 0 :
-                System.Windows.Media.SystemColors.WindowColor.R < 80 ? 1 : 0;
+                System.Windows.SystemColors.WindowColor.R < 80 ? 1 : 0;
             _ = DwmSetWindowAttribute(handle, DwmImmersiveDarkMode, ref dark, sizeof(int));
         }
         catch(DllNotFoundException) { }
