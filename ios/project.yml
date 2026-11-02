@@ -23,6 +23,8 @@ targets:
       path: RobinShare/Info.plist
       properties:
         CFBundleDisplayName: Robins Share
+        CFBundleShortVersionString: '3.0.0'
+        CFBundleVersion: '4'
         UILaunchScreen: {}
         NSSupportsLiveActivities: true
         UIApplicationSceneManifest:
