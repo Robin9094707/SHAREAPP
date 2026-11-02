@@ -14,7 +14,7 @@
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <SelfContained>true</SelfContained>
     <PublishSingleFile>false</PublishSingleFile>
-    <ApplicationIcon>Assets\RobinShare.ico</ApplicationIcon>
+    <ApplicationIcon>..\RobinShare\Assets\RobinShare.ico</ApplicationIcon>
     <AssemblyName>RobinsShare</AssemblyName>
     <RootNamespace>RobinShare</RootNamespace>
     <Version>3.1.0</Version>
@@ -22,7 +22,7 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.WindowsAppSDK" Version="1.8.260921001" />
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
-    <Content Include="Assets\RobinShare.ico" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="..\RobinShare\Assets\RobinShare.ico" Link="RobinShare.ico" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
   <ItemGroup>
     <Compile Include="..\RobinShare\Models.cs" Link="Core\Models.cs" />
