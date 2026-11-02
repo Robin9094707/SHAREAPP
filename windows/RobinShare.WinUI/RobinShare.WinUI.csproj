@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <TargetPlatformMinVersion>10.0.19041.0</TargetPlatformMinVersion>
+    <UseWinUI>true</UseWinUI>
+    <WindowsPackageType>None</WindowsPackageType>
+    <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
+    <EnableMsixTooling>true</EnableMsixTooling>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <SelfContained>true</SelfContained>
+    <PublishSingleFile>false</PublishSingleFile>
+    <ApplicationIcon>..\RobinShare\Assets\RobinShare.ico</ApplicationIcon>
+    <AssemblyName>RobinsShare</AssemblyName>
+    <RootNamespace>RobinShare</RootNamespace>
+    <Version>3.1.0</Version>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.WindowsAppSDK" Version="1.8.260921001" />
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <FrameworkReference Include="Microsoft.WindowsDesktop.App.WindowsForms" />
+    <Content Include="..\RobinShare\Assets\RobinShare.ico" Link="RobinShare.ico" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="..\RobinShare\Models.cs" Link="Core\Models.cs" />
+    <Compile Include="..\RobinShare\Settings.cs" Link="Core\Settings.cs" />
+    <Compile Include="..\RobinShare\Discovery.cs" Link="Core\Discovery.cs" />
+    <Compile Include="..\RobinShare\LocalServer.cs" Link="Core\LocalServer.cs" />
+    <Compile Include="..\RobinShare\UploadJournal.cs" Link="Core\UploadJournal.cs" />
+    <Compile Include="..\RobinShare\FolderPackager.cs" Link="Core\FolderPackager.cs" />
+    <Compile Include="..\RobinShare\WindowsShareBridge.cs" Link="Core\WindowsShareBridge.cs" />
+    <Compile Include="..\RobinShare\StartupDiagnostics.cs" Link="Core\StartupDiagnostics.cs" />
+  </ItemGroup>
+</Project>

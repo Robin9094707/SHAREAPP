@@ -2,6 +2,19 @@
 
 Eine deutsche Suite für Dateifreigaben: ein eigenständiger Server mit Weboberfläche, eine native SwiftUI-App für iPhone/iPad und ein natives Windows-11-Programm mit WPF Fluent. Der bestehende Webport **5055** bleibt erhalten.
 
+## Windows 11 – echtes WinUI 3 (Version 3.1)
+
+Die Windows-Oberfläche wurde **komplett neu als WinUI-3-Anwendung** unter `windows/RobinShare.WinUI/` erstellt. Sie verwendet das **Microsoft Windows App SDK**, nicht mehr die WPF-XAML-Oberfläche des alten Projekts. Der Windows-Installer baut und installiert ab Version 3.1 ausschließlich das native WinUI-Projekt. Das alte WPF-Projekt bleibt vorerst im Repository für dessen vorhandene Netzwerk-/Sicherheitstests, wird aber **nicht ausgeliefert**.
+
+- Native **NavigationView**, **InfoBar**, **ContentDialog**, **Buttons**, **ListView**, **TextBox**, **ComboBox**, **ToggleSwitch**, **ProgressBar** und integrierte Windows-Dateipicker.
+- Native Windows-11-**MicaBackdrop**-Oberfläche und echte Titelleiste; **dunkles Design** beim ersten Start, umstellbar auf Hell oder System unter Einstellungen.
+- Verschlüsselte HTTPS-Transfers, lokale WLAN-/Hotspot-Erkennung, Bluetooth-Geräteerkennung, Pairing, PIN-Empfang, Dateiauswahl, Explorer-Drag & Drop, ZIP-Ordner, Zwischenablage, lokale Geräte und Windows-Freigabemenü basieren weiter auf dem bestehenden Backend.
+- Die Anwendung verwendet einen **self-contained Windows App SDK runtime**. Deshalb enthält das Setup mehrere native Laufzeitdateien; nur `RobinsShare.exe` zu kopieren reicht nicht aus. Der Inno-Setup-Installer übernimmt die vollständige Dateistruktur.
+- Einstellungen bleiben über den vorhandenen geschützten lokalen Speicher erhalten. Die native WinUI-3-Oberfläche unterstützt einen Tray-Modus; der Tray nutzt die Windows-Shell-Benachrichtigung.
+- Das Projekt kann eigenständig gebaut werden: `dotnet build windows/RobinShare.WinUI/RobinShare.WinUI.csproj -c Release`.
+
+Das ursprüngliche WPF-Projekt ist als Legacy-Testprojekt erhalten und darf nicht mit dem nativen Windows-11-Installer verwechselt werden.
+
 ## SHAREAPP 3.0 – native Betriebssystemfreigabe
 
 ### iOS: AirDrop und kompatible Quick-Share-Geräte

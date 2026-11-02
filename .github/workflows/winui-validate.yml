@@ -1,0 +1,25 @@
+name: Native Windows 11 UI validation
+on:
+  push:
+    branches: [feat/windows-native-winui3-20261102]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  winui:
+    runs-on: windows-latest
+    name: WinUI 3 / Windows App SDK
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Build native shell
+        run: dotnet build windows/RobinShare.WinUI/RobinShare.WinUI.csproj -c Release
+      - name: Smoke-test native core
+        shell: pwsh
+        timeout-minutes: 3
+        run: |
+          $exe = "windows/RobinShare.WinUI/bin/Release/net10.0-windows10.0.19041.0/win-x64/RobinsShare.exe"
+          $p = Start-Process $exe -ArgumentList '--self-test' -Wait -PassThru
+          if ($p.ExitCode -ne 0) { Get-Content "$env:TEMP/RobinsShare-winui-test-error.txt" -ErrorAction SilentlyContinue; exit 1 }

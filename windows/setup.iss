@@ -1,4 +1,4 @@
-#define MyAppVersion "3.0.0"
+#define MyAppVersion "3.1.0"
 [Setup]
 AppId={{EB1DC50A-D27A-4164-97B3-050550550001}
 AppName=Robins Share
@@ -21,7 +21,7 @@ Name: "german"; MessagesFile: "compiler:Languages\German.isl"
 [Tasks]
 Name: "desktopicon"; Description: "Desktop-Verknüpfung erstellen"; Flags: unchecked
 [Files]
-Source: "..\dist\windows\RobinsShare.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\dist\windows\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "..\docs\Lokale-Verbindung.ps1"; DestDir: "{app}"; Flags: ignoreversion
 [Icons]
 Name: "{group}\Robins Share"; Filename: "{app}\RobinsShare.exe"

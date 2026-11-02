@@ -12,6 +12,7 @@ public sealed class Settings
     public Dictionary<string,string> LocalTokens { get;set; }=[];
     public bool AutoStart {get;set;}
     public bool ContextMenu {get;set;}
+    public string UiTheme {get;set;}="Dark";
     public static Settings Load()
     {
         try {return JsonSerializer.Deserialize<Settings>(ProtectedData.Unprotect(File.ReadAllBytes(Path.Combine(Folder,"settings.bin")),null,DataProtectionScope.CurrentUser))??new();}catch{return new();}
